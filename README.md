@@ -11,10 +11,6 @@
 - 同一个页面内切换引擎、调节语速、试听和下载音频。
 - 本地模型缺失或初始化失败时，仅禁用对应引擎，不影响 Edge TTS 使用。
 
-Kokoro 的 Go 接入方案参考了
-[chasedputnam/go-kokoro-tts](https://github.com/chasedputnam/go-kokoro-tts)；
-Kokoro 与 Kitten 共用一份 ONNX Runtime 环境。
-
 ## 界面预览
 
 桌面界面：
