@@ -44,10 +44,6 @@
             <span id="char-count" class="char-count">0 / {{.MaxTextRunes}}</span>
           </div>
 
-          <label class="sr-only" for="text">需要转换的文字</label>
-          <textarea id="text" name="text" maxlength="{{.MaxTextRunes}}" rows="8"
-            placeholder="在这里输入或粘贴文字……&#10;&#10;例如：欢迎使用 VoxLab。今天，我们把文字变成声音。"></textarea>
-
           <div class="input-meta">
             <div class="sample-row" aria-label="示例文本">
               <span>试试：</span>
@@ -57,6 +53,10 @@
             </div>
             <span id="language-detection" class="detection-badge" aria-live="polite"></span>
           </div>
+
+          <label class="sr-only" for="text">需要转换的文字</label>
+          <textarea id="text" name="text" maxlength="{{.MaxTextRunes}}" rows="8"
+            placeholder="在这里输入或粘贴文字……&#10;&#10;例如：欢迎使用 VoxLab。今天，我们把文字变成声音。"></textarea>
 
           <div class="section-heading engine-heading">
             <div>

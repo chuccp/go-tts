@@ -4,7 +4,6 @@
   const form = document.getElementById("tts-form");
   const text = document.getElementById("text");
   const workspace = document.querySelector(".workspace");
-  const inputMeta = document.querySelector(".input-meta");
   const resultPanel = document.querySelector(".result-panel");
   const languageSelect = document.getElementById("language");
   const voiceSelect = document.getElementById("voice");
@@ -51,7 +50,7 @@
   const mobileLayout = window.matchMedia("(max-width: 640px)");
   function placeResultPanel() {
     if (mobileLayout.matches) {
-      inputMeta.after(resultPanel);
+      text.after(resultPanel);
     } else {
       workspace.append(resultPanel);
     }
