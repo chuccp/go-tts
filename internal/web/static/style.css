@@ -1061,9 +1061,9 @@ audio {
 
   .mobile-speed-slot {
     display: flex;
-    flex: 0 0 92px;
+    flex: 0 0 clamp(112px, 28vw, 132px);
     align-items: center;
-    padding: 9px 7px;
+    padding: 9px 10px;
     border-right: 1px solid var(--line);
   }
 
