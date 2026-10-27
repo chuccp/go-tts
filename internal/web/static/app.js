@@ -2,6 +2,11 @@
   "use strict";
 
   const form = document.getElementById("tts-form");
+  const uiLanguageSelects = Array.from(document.querySelectorAll(".ui-language-select"));
+  const i18n = window.VoxLabI18n;
+  const preferredUiLanguage = localStorage.getItem("voxlab.uiLanguage") ||
+    (navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en");
+  i18n.applyLanguage(preferredUiLanguage);
   const text = document.getElementById("text");
   const workspace = document.querySelector(".workspace");
   const resultPanel = document.querySelector(".result-panel");
@@ -39,6 +44,9 @@
   let statusTimer = 0;
   let detectionTimer = 0;
   let detectionSequence = 0;
+  let hasAudio = false;
+  let isBusy = false;
+  let lastOutput = null;
 
   const samples = {
     zh: "欢迎使用 VoxLab。这里汇聚了 Kokoro、Kitten 与 Edge TTS 三套语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
@@ -48,6 +56,49 @@
 
   function activeEngine() {
     return engines.find((engine) => engine.id === selectedEngine);
+  }
+
+  function tr(key, variables) {
+    return i18n.t(key, variables);
+  }
+
+  function languageLabel(code, fallback) {
+    if (!code) return fallback || "";
+    const key = `language.${code}`;
+    const translated = tr(key);
+    return translated === key ? (fallback || code) : translated;
+  }
+
+  function refreshDynamicLanguage() {
+    buttonLabel.textContent = isBusy ? tr("button.generating") : tr("button.generate");
+    if (!hasAudio) {
+      playerTitle.textContent = tr("player.waiting");
+      playerDetail.textContent = tr("player.waitingHint");
+    } else if (lastOutput) {
+      playerTitle.textContent = lastOutput.title;
+      playerDetail.textContent = tr("player.generatedDetail", {
+        speed: lastOutput.speed,
+        size: lastOutput.size
+      });
+    }
+    if (detectedLanguage) {
+      languageDetection.textContent = tr("detect.detected", {
+        name: languageLabel(detectedLanguage.code, detectedLanguage.name),
+        confidence: detectedLanguage.confidence
+      });
+    }
+    const engine = activeEngine();
+    if (engine && languageSelect.options.length > 0) {
+      populateLanguages(engine, languageSelect.value);
+      populateVoices(engine, selectedVoice);
+      if (!loadingVoices && voiceSelect.value) {
+        voiceStatus.textContent = tr("voice.count", {
+          count: voiceSelect.options.length,
+          language: languageSelect.selectedOptions[0]?.dataset.name || ""
+        });
+      }
+    }
+    updateLanguageWarning();
   }
 
   const mobileLayout = window.matchMedia("(max-width: 640px)");
@@ -118,7 +169,11 @@
         continue;
       }
       if (!languages.has(code)) {
-        languages.set(code, { code, name: voice.language || code, count: 0 });
+        languages.set(code, {
+          code,
+          name: languageLabel(code, voice.language || code),
+          count: 0
+        });
       }
       languages.get(code).count += 1;
     }
@@ -127,7 +182,7 @@
     languageSelect.replaceChildren();
     if (languages.size === 0) {
       const option = document.createElement("option");
-      option.textContent = "无可用语言";
+      option.textContent = tr("role.empty");
       option.disabled = true;
       languageSelect.append(option);
       selectedLanguage = "";
@@ -172,7 +227,7 @@
     voiceSelect.replaceChildren();
     if (voices.length === 0) {
       const option = document.createElement("option");
-      option.textContent = "没有可用角色";
+      option.textContent = tr("role.empty");
       option.disabled = true;
       voiceSelect.append(option);
       updateVoiceMeta();
@@ -183,10 +238,12 @@
     for (const voice of voices) {
       const option = document.createElement("option");
       option.value = voice.id;
-      option.textContent = [voice.name, voice.gender].filter(Boolean).join(" · ");
+      const genderKey = `gender.${String(voice.gender || "").toLowerCase()}`;
+      const gender = voice.gender ? tr(genderKey) : "";
+      option.textContent = [voice.name, gender].filter(Boolean).join(" · ");
       option.dataset.locale = voice.locale || "";
       option.dataset.gender = voice.gender || "";
-      option.dataset.language = voice.language || "";
+      option.dataset.language = languageLabel(voiceLanguageCode(voice), voice.language || "");
       option.dataset.languageCode = voiceLanguageCode(voice);
       voiceSelect.append(option);
     }
@@ -215,7 +272,7 @@
     }
 
     loadingVoices = true;
-    voiceStatus.textContent = "正在同步音色列表…";
+    voiceStatus.textContent = tr("voice.syncing");
     try {
       const response = await fetch(`/api/voices?engine=${encodeURIComponent(engineID)}`, {
         headers: { Accept: "application/json" }
@@ -230,10 +287,13 @@
         populateVoices(engine, selectedVoice);
       }
       voiceStatus.textContent = payload.warning
-        ? `在线音色暂不可用，已使用内置列表：${payload.warning}`
-        : `${voiceSelect.options.length} 个${languageSelect.selectedOptions[0]?.dataset.name || ""}角色`;
+        ? tr("voice.fallback", { warning: payload.warning })
+        : tr("voice.count", {
+          count: voiceSelect.options.length,
+          language: languageSelect.selectedOptions[0]?.dataset.name || ""
+        });
     } catch (error) {
-      voiceStatus.textContent = "音色同步失败，可继续使用当前列表";
+      voiceStatus.textContent = tr("voice.failed");
     } finally {
       loadingVoices = false;
     }
@@ -264,14 +324,20 @@
     const voices = activeVoices(engine);
     const supported = voices.some((voice) => voiceLanguageCode(voice) === detectedLanguage.code);
     if (!supported) {
-      languageWarning.textContent = `检测到${detectedLanguage.name}，${engine.name} 当前没有该语言的角色。`;
+      languageWarning.textContent = tr("warning.unsupported", {
+        language: languageLabel(detectedLanguage.code, detectedLanguage.name),
+        engine: engine.name
+      });
       languageWarning.hidden = false;
       return;
     }
     const currentCode = languageSelect.value;
     if (currentCode && currentCode !== detectedLanguage.code) {
       const currentName = languageSelect.selectedOptions[0]?.dataset.name || currentCode;
-      languageWarning.textContent = `检测到${detectedLanguage.name}，当前角色语言为${currentName}，请确认选择。`;
+      languageWarning.textContent = tr("warning.mismatch", {
+        detected: languageLabel(detectedLanguage.code, detectedLanguage.name),
+        selected: languageLabel(currentCode, currentName)
+      });
       languageWarning.hidden = false;
       return;
     }
@@ -293,12 +359,15 @@
       }
       if (!response.ok || !result.code) {
         detectedLanguage = null;
-        languageDetection.textContent = "语言：未识别";
+        languageDetection.textContent = tr("detect.unknown");
         updateLanguageWarning();
         return;
       }
       detectedLanguage = result;
-      languageDetection.textContent = `检测到：${result.name} · ${result.confidence}%`;
+      languageDetection.textContent = tr("detect.detected", {
+        name: languageLabel(result.code, result.name),
+        confidence: result.confidence
+      });
       const engine = activeEngine();
       const supported = activeVoices(engine).some((voice) => voiceLanguageCode(voice) === result.code);
       if (supported && languageSelect.value !== result.code) {
@@ -310,7 +379,7 @@
     } catch (_) {
       if (sequence === detectionSequence) {
         detectedLanguage = null;
-        languageDetection.textContent = "语言检测失败";
+        languageDetection.textContent = tr("detect.failed");
         updateLanguageWarning();
       }
     }
@@ -326,7 +395,7 @@
       updateLanguageWarning();
       return;
     }
-    languageDetection.textContent = "语言检测中…";
+    languageDetection.textContent = tr("detect.detecting");
     detectionTimer = window.setTimeout(() => detectInputLanguage(content), 350);
   }
 
@@ -363,18 +432,21 @@
   });
   audio.addEventListener("error", () => {
     if (audio.src) {
-      showError("浏览器无法播放这段音频，请尝试下载后播放。");
+      showError(tr("error.playback"));
     }
   });
 
   function setBusy(busy) {
     synthesize.disabled = busy;
     synthesize.classList.toggle("is-loading", busy);
-    buttonLabel.textContent = busy ? "正在生成" : "生成语音";
+    isBusy = busy;
+    buttonLabel.textContent = busy ? tr("button.generating") : tr("button.generate");
     if (busy) {
       const started = Date.now();
       statusTimer = window.setInterval(() => {
-        buttonLabel.textContent = `正在生成 ${Math.floor((Date.now() - started) / 1000)}s`;
+        buttonLabel.textContent = tr("button.generatingSeconds", {
+          seconds: Math.floor((Date.now() - started) / 1000)
+        });
       }, 1000);
     } else {
       window.clearInterval(statusTimer);
@@ -387,17 +459,17 @@
     clearError();
     const content = text.value.trim();
     if (!content) {
-      showError("请先输入要转换的文字。");
+      showError(tr("error.textRequired"));
       text.focus();
       return;
     }
     const engine = activeEngine();
     if (!engine?.available) {
-      showError(engine?.error || "所选引擎当前不可用。");
+      showError(engine?.error || tr("error.engineUnavailable"));
       return;
     }
     if (loadingVoices) {
-      showError("音色列表正在同步，请稍后再试。");
+      showError(tr("error.voiceSyncing"));
       return;
     }
 
@@ -419,7 +491,7 @@
         body
       });
       if (!response.ok) {
-        let message = `合成失败（HTTP ${response.status}）`;
+        let message = tr("error.synthesis", { status: response.status });
         try {
           const payload = await response.json();
           message = payload.error || message;
@@ -441,8 +513,18 @@
       audio.play().catch(() => {});
 
       const option = voiceSelect.selectedOptions[0];
-      playerTitle.textContent = `${engine.name} · ${option?.textContent || voiceSelect.value}`;
-      playerDetail.textContent = `${Number(speed.value).toFixed(2)}× 语速 · ${(blob.size / 1024).toFixed(0)} KB`;
+      const outputTitle = `${engine.name} · ${option?.textContent || voiceSelect.value}`;
+      lastOutput = {
+        title: outputTitle,
+        speed: Number(speed.value).toFixed(2),
+        size: (blob.size / 1024).toFixed(0)
+      };
+      hasAudio = true;
+      playerTitle.textContent = outputTitle;
+      playerDetail.textContent = tr("player.generatedDetail", {
+        speed: lastOutput.speed,
+        size: lastOutput.size
+      });
       audio.removeAttribute("aria-disabled");
       download.href = audioURL;
       download.download = `voxlab-${selectedEngine}-${Date.now()}.${blob.type.includes("wav") ? "wav" : "mp3"}`;
@@ -451,15 +533,21 @@
       resultPlaceholder.hidden = true;
       player.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (error) {
-      showError(error instanceof Error ? error.message : "合成失败，请稍后重试。");
+      showError(error instanceof Error ? error.message : tr("error.generic"));
     } finally {
       setBusy(false);
     }
   });
 
+  uiLanguageSelects.forEach((select) => {
+    select.addEventListener("change", () => {
+      i18n.applyLanguage(select.value);
+    });
+  });
+  window.addEventListener("voxlab:languagechange", refreshDynamicLanguage);
+
   updateCharCount();
-  updateVoiceMeta();
-  updateLanguageWarning();
+  refreshDynamicLanguage();
   if (selectedEngine) {
     loadVoices(selectedEngine);
   }
