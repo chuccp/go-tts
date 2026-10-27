@@ -5,6 +5,9 @@
   const text = document.getElementById("text");
   const workspace = document.querySelector(".workspace");
   const resultPanel = document.querySelector(".result-panel");
+  const settingsGrid = document.querySelector(".settings-grid");
+  const speedField = document.querySelector(".speed-field");
+  const mobileSpeedSlot = document.getElementById("mobile-speed-slot");
   const languageSelect = document.getElementById("language");
   const voiceSelect = document.getElementById("voice");
   const voiceStatus = document.getElementById("voice-status");
@@ -51,8 +54,10 @@
   function placeResultPanel() {
     if (mobileLayout.matches) {
       text.after(resultPanel);
+      mobileSpeedSlot.append(speedField);
     } else {
       workspace.append(resultPanel);
+      settingsGrid.append(speedField);
     }
   }
   placeResultPanel();

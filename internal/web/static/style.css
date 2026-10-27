@@ -191,6 +191,10 @@ input[type="range"] {
   backdrop-filter: blur(20px);
 }
 
+.mobile-speed-slot {
+  display: none;
+}
+
 .composer {
   padding: 24px;
 }
@@ -984,7 +988,7 @@ audio {
   }
 
   .settings-grid {
-    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.2fr) minmax(95px, 0.85fr);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
     gap: 6px;
     margin-top: 12px;
   }
@@ -1042,6 +1046,8 @@ audio {
 
   .result-panel {
     display: flex;
+    flex-direction: row;
+    align-items: stretch;
     min-height: 0;
     margin-top: 8px;
     border-radius: 12px;
@@ -1053,7 +1059,43 @@ audio {
     display: none;
   }
 
+  .mobile-speed-slot {
+    display: flex;
+    flex: 0 0 92px;
+    align-items: center;
+    padding: 9px 7px;
+    border-right: 1px solid var(--line);
+  }
+
+  .mobile-speed-slot .speed-field {
+    width: 100%;
+    padding: 0;
+  }
+
+  .mobile-speed-slot .field-label-row {
+    display: block;
+  }
+
+  .mobile-speed-slot .field-label-row label {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .mobile-speed-slot #speed-value {
+    display: block;
+  }
+
+  .mobile-speed-slot input[type="range"] {
+    margin-top: 7px;
+  }
+
+  .mobile-speed-slot .range-labels {
+    font-size: 7px;
+  }
+
   .player {
+    flex: 1;
+    min-width: 0;
     min-height: 104px;
     padding: 11px;
     border-top: 0;
