@@ -61,7 +61,7 @@ models/
 
 从 [KittenML/kitten-tts-nano-0.8](https://huggingface.co/KittenML/kitten-tts-nano-0.8/tree/main)
 下载 `kitten_tts_nano_v0_8.onnx`、`voices.npz` 和 `config.json`。也可换用同系列其他
-轻量 ONNX 模型，并通过启动参数指定文件路径。
+轻量 ONNX 模型，并在 `application.yml` 中指定文件路径。
 
 ## 启动
 
@@ -70,41 +70,38 @@ go mod tidy
 go run .
 ```
 
-默认地址为 <http://127.0.0.1:8080>。
+应用默认读取根目录的 [`application.yml`](application.yml)，默认地址为
+<http://localhost:8080>。程序不维护额外的命令行兼容层，启动参数和引擎路径统一由
+`go-web-frame` 配置系统读取。
 
-常用参数：
+常用 YML 配置：
 
-```powershell
-go run . `
-  -addr 127.0.0.1:8080 `
-  -onnx-lib C:\path\to\onnxruntime.dll `
-  -espeak C:\path\to\espeak-ng.exe `
-  -kokoro-model models\kokoro\kokoro-v0_19.onnx `
-  -kokoro-voices models\kokoro\voices-v1.0.bin `
-  -kitten-model models\kitten\kitten_tts_nano_v0_8.onnx `
-  -kitten-voices models\kitten\voices.npz `
-  -kitten-config models\kitten\config.json
+```yaml
+web:
+  server:
+    port: 8080
+    read_header_timeout: 5
+    read_timeout: 30
+  log:
+    level: info
+
+tts:
+  max_chars: 5000
+  onnx:
+    runtime_lib: ""
+  espeak:
+    path: ""
+  edge:
+    default_voice: zh-CN-XiaoxiaoNeural
+    proxy: ""
+  kokoro:
+    model: models/kokoro/kokoro-v0_19.onnx
+    voices: models/kokoro/voices-v1.0.bin
+  kitten:
+    model: models/kitten/kitten_tts_nano_v0_8.onnx
+    voices: models/kitten/voices.npz
+    config: models/kitten/config.json
 ```
-
-完整参数：
-
-| 参数 | 默认值 | 说明 |
-| --- | --- | --- |
-| `-addr` | `127.0.0.1:8080` | Web 监听地址 |
-| `-onnx-lib` | 自动查找 | ONNX Runtime 动态库 |
-| `-espeak` | 自动查找 | 音素化可执行文件 |
-| `-kokoro-model` | `models/kokoro/kokoro-v0_19.onnx` | Kokoro 模型 |
-| `-kokoro-voices` | `models/kokoro/voices-v1.0.bin` | Kokoro 音色文件或目录 |
-| `-kitten-model` | `models/kitten/kitten_tts_nano_v0_8.onnx` | Kitten 模型 |
-| `-kitten-voices` | `models/kitten/voices.npz` | Kitten 音色文件或目录 |
-| `-kitten-config` | `models/kitten/config.json` | Kitten 音色别名与语速先验 |
-| `-edge-voice` | `zh-CN-XiaoxiaoNeural` | 初始 Edge 音色 |
-| `-edge-proxy` | 空 | Edge TTS 使用的 HTTP 代理 |
-| `-max-chars` | `5000` | 单次输入字符上限 |
-
-也支持环境变量：`TTS_ADDR`、`ONNXRUNTIME_LIB`、`ESPEAK_NG`、`KOKORO_MODEL`、
-`KOKORO_VOICES`、`KITTEN_MODEL`、`KITTEN_VOICES`、`KITTEN_CONFIG`、`EDGE_VOICE`
-和 `EDGE_PROXY`。
 
 Windows 便携版 eSpeak 可放在 `runtime/espeak-ng/espeak-ng.exe`。应用会自动找到同目录下的
 `espeak-ng-data` 并传给子进程，无需手工设置环境变量。
@@ -160,8 +157,8 @@ go test ./internal/tts -run TestEdgeLiveIntegration -v
 ## 实现说明
 
 - Web 路由、Controller、Filter、静态资源和安全响应头由 `go-web-frame` 管理。
-- 为保留 `-addr` 的主机绑定能力，使用框架生成的 `http.Handler` 配合标准
-  `net/http.Server` 启动；路由与请求处理仍完整经过框架。
+- TTS 引擎由框架 Service 初始化，Controller 通过框架依赖注入获取。
+- 使用 `WebFrame.Run()` 管理 Web 服务生命周期和优雅退出。
 - Edge TTS 直接使用 WebSocket 协议，包含当前 `Sec-MS-GEC` v2 令牌生成，不依赖 Python。
 - 长文本按句拆分；Kokoro 还会在音素 token 超过模型限制时继续递归拆分。
 - Kokoro 输出 24 kHz float32 PCM，服务端转为单声道 16-bit WAV。

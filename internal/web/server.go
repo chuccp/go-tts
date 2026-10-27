@@ -9,15 +9,17 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cao/go-tts/internal/tts"
+	"github.com/cao/go-tts/internal/ttssvc"
 	"github.com/chuccp/go-web-frame/core"
+	framelog "github.com/chuccp/go-web-frame/log"
 	frameweb "github.com/chuccp/go-web-frame/web"
+	"go.uber.org/zap"
 )
 
 //go:embed templates/*.html static/*
@@ -25,10 +27,9 @@ var assets embed.FS
 
 type App struct {
 	core.IService
-	service   *tts.Service
+	service   *ttssvc.Service
 	templates *template.Template
 	static    http.FileSystem
-	logger    *log.Logger
 }
 
 type pageData struct {
@@ -51,13 +52,7 @@ type clientEngine struct {
 	Voices        []tts.Voice `json:"voices"`
 }
 
-func NewApp(service *tts.Service, logger *log.Logger) (*App, error) {
-	if service == nil {
-		return nil, errors.New("TTS service is required")
-	}
-	if logger == nil {
-		logger = log.Default()
-	}
+func NewApp() (*App, error) {
 	templates, err := template.ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -67,15 +62,14 @@ func NewApp(service *tts.Service, logger *log.Logger) (*App, error) {
 		return nil, fmt.Errorf("open static assets: %w", err)
 	}
 	return &App{
-		service:   service,
 		templates: templates,
 		static:    http.FS(staticFS),
-		logger:    logger,
 	}, nil
 }
 
 // Init registers the application through Go Web Frame's controller system.
 func (a *App) Init(ctx *core.Context) error {
+	a.service = core.MustService[*ttssvc.Service](ctx)
 	ctx.Handle(http.MethodGet, "/", a.home)
 	ctx.Handle(http.MethodHead, "/", a.home)
 	ctx.Any("/api/voices", a.voices)
@@ -221,7 +215,11 @@ func (a *App) synthesize(req *frameweb.Request) (any, error) {
 			strings.Contains(err.Error(), "not available") {
 			status = http.StatusBadRequest
 		}
-		a.logger.Printf("synthesis failed engine=%s voice=%s: %v", engineID, voice, err)
+		framelog.Error("synthesis failed",
+			zap.String("engine", engineID),
+			zap.String("voice", voice),
+			zap.Error(err),
+		)
 		writeJSON(req, status, map[string]any{"error": err.Error()})
 		return nil, nil
 	}
@@ -264,14 +262,10 @@ func (a *App) health(req *frameweb.Request) (any, error) {
 
 type RequestFilter struct {
 	core.IFilter
-	Logger *log.Logger
 }
 
-func NewRequestFilter(logger *log.Logger) *RequestFilter {
-	if logger == nil {
-		logger = log.Default()
-	}
-	return &RequestFilter{Logger: logger}
+func NewRequestFilter() *RequestFilter {
+	return &RequestFilter{}
 }
 
 func (f *RequestFilter) Init(*core.Context) error {
@@ -289,7 +283,12 @@ func (f *RequestFilter) Handle(next frameweb.FilterChain, req *frameweb.Request)
 	result, err := next.Next()
 	path := req.URL().Path
 	if path != "/static/app.js" && path != "/static/style.css" {
-		f.Logger.Printf("%s %s %s", req.Request().Method, path, time.Since(started).Round(time.Millisecond))
+		framelog.Info("request",
+			zap.String("method", req.Request().Method),
+			zap.String("path", path),
+			zap.Duration("duration", time.Since(started).Round(time.Millisecond)),
+			zap.Error(err),
+		)
 	}
 	return result, err
 }

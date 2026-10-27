@@ -1,27 +1,24 @@
 package main
 
-import "testing"
+import (
+	"testing"
 
-func TestAddrPort(t *testing.T) {
+	"github.com/chuccp/go-web-frame/config"
+)
+
+func TestDefaultApplicationYAML(t *testing.T) {
 	t.Parallel()
-	tests := map[string]int{
-		"127.0.0.1:8080":  8080,
-		"localhost:19009": 19009,
-		":3000":           3000,
-		"[::1]:8443":      8443,
+	cfg, err := config.LoadSingleFileConfig("application.yml")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for addr, want := range tests {
-		got, err := addrPort(addr)
-		if err != nil {
-			t.Fatalf("addrPort(%q): %v", addr, err)
-		}
-		if got != want {
-			t.Fatalf("addrPort(%q) = %d, want %d", addr, got, want)
-		}
+	if got := cfg.GetInt("web.server.port"); got != 8080 {
+		t.Fatalf("web.server.port = %d, want 8080", got)
 	}
-	for _, addr := range []string{"localhost", "127.0.0.1:0", "127.0.0.1:70000", "127.0.0.1:abc"} {
-		if _, err := addrPort(addr); err == nil {
-			t.Fatalf("addrPort(%q) should fail", addr)
-		}
+	if got := cfg.GetInt("tts.max_chars"); got != 5000 {
+		t.Fatalf("tts.max_chars = %d, want 5000", got)
+	}
+	if got := cfg.GetString("tts.kokoro.model"); got == "" {
+		t.Fatal("tts.kokoro.model is empty")
 	}
 }

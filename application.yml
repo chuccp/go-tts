@@ -1,0 +1,24 @@
+web:
+  server:
+    port: 8080
+    read_header_timeout: 5
+    read_timeout: 30
+  log:
+    level: info
+
+tts:
+  max_chars: 5000
+  onnx:
+    runtime_lib: ""
+  espeak:
+    path: ""
+  edge:
+    default_voice: zh-CN-XiaoxiaoNeural
+    proxy: ""
+  kokoro:
+    model: models/kokoro/kokoro-v0_19.onnx
+    voices: models/kokoro/voices-v1.0.bin
+  kitten:
+    model: models/kitten/kitten_tts_nano_v0_8.onnx
+    voices: models/kitten/voices.npz
+    config: models/kitten/config.json

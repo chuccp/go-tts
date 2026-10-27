@@ -6,6 +6,7 @@ require (
 	github.com/chuccp/go-web-frame v1.0.19
 	github.com/gorilla/websocket v1.5.3
 	github.com/yalue/onnxruntime_go v1.30.0
+	go.uber.org/zap v1.28.0
 )
 
 require (
@@ -60,7 +61,6 @@ require (
 	github.com/ugorji/go/codec v1.3.2 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.31.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect

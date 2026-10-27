@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/cao/go-tts/internal/tts"
+	"github.com/cao/go-tts/internal/ttssvc"
 	wf "github.com/chuccp/go-web-frame"
 	"github.com/chuccp/go-web-frame/config"
 )
@@ -197,14 +197,15 @@ func TestSynthesizeRejectsUnknownEngine(t *testing.T) {
 
 func newTestHandler(t *testing.T, service *tts.Service) http.Handler {
 	t.Helper()
-	app, err := NewApp(service, log.New(io.Discard, "", 0))
+	app, err := NewApp()
 	if err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.NewConfig()
 	cfg.Put("web.server.port", testPort)
 	builder := wf.NewBuilder(cfg)
-	builder.Filter(NewRequestFilter(log.New(io.Discard, "", 0)))
+	builder.Service(ttssvc.NewWithService(service))
+	builder.Filter(NewRequestFilter())
 	builder.Rest(app)
 	handler := builder.Build().GetHandler()
 	if handler == nil {
