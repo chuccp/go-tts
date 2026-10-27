@@ -25,9 +25,14 @@ func TestLocalEngineIntegration(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		espeak = filepath.Join(root, "runtime", "espeak-ng", "espeak-ng")
 	}
-	kokoroModel := filepath.Join(root, "models", "kokoro", "kokoro-v0_19-int8.onnx")
-	if _, err := os.Stat(kokoroModel); err != nil {
-		kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx")
+	kokoroModel := os.Getenv("TTS_KOKORO_MODEL")
+	if kokoroModel == "" {
+		kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19-int8.onnx")
+		if _, err := os.Stat(kokoroModel); err != nil {
+			kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx")
+		}
+	} else if !filepath.IsAbs(kokoroModel) {
+		kokoroModel = filepath.Join(root, kokoroModel)
 	}
 	paths := []string{
 		runtimeLib,

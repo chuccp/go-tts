@@ -57,6 +57,14 @@ hf download coke123/go-tts-models `
   --local-dir models
 ```
 
+需要体积与精度之间的中间档时，可额外下载 UINT8 模型：
+
+```powershell
+hf download coke123/go-tts-models `
+  kokoro/kokoro-v0_19-uint8.onnx `
+  --local-dir models
+```
+
 ### Kokoro
 
 ```text
@@ -64,11 +72,13 @@ models/
   kokoro/
     kokoro-v0_19.onnx
     kokoro-v0_19-int8.onnx
+    kokoro-v0_19-uint8.onnx
     voices-v1.0.bin
 ```
 
 - FP32 原模型：[kokoro-v0_19.onnx](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/kokoro-v0_19.onnx)
 - INT8 模型：[kokoro-v0_19-int8.onnx](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/kokoro-v0_19-int8.onnx)
+- UINT8 中间档：[kokoro-v0_19-uint8.onnx](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/kokoro-v0_19-uint8.onnx)
 - 音色：[voices-v1.0.bin](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/voices-v1.0.bin)
 
 虽然音色文件扩展名是 `.bin`，实际是包含多个 `.npy` 的 NPZ。应用也支持包含多个
@@ -77,6 +87,7 @@ models/
 默认配置使用约 88 MB 的预量化 INT8 模型，无需再下载权重转换工具或自行量化。
 实测 INT8 模型启动工作集约 302 MB，原 FP32 模型约 517 MB。INT8 与 FP32 均保持相同的
 `tokens/style/speed -> audio` 输入输出签名，可通过 `application.yml` 切换。
+约 177 MB 的 UINT8 版本也已通过模型加载和非静音语音合成测试，适合需要中间体积的部署。
 
 ### Kitten TTS
 
@@ -171,6 +182,14 @@ go vet ./...
 
 ```powershell
 $env:TTS_INTEGRATION = "1"
+go test ./internal/tts -run TestLocalEngineIntegration -v
+```
+
+可通过 `TTS_KOKORO_MODEL` 指定要验证的 Kokoro 模型：
+
+```powershell
+$env:TTS_INTEGRATION = "1"
+$env:TTS_KOKORO_MODEL = "models/kokoro/kokoro-v0_19-uint8.onnx"
 go test ./internal/tts -run TestLocalEngineIntegration -v
 ```
 
