@@ -14,6 +14,16 @@ Kokoro 的 Go 接入方案参考了
 [chasedputnam/go-kokoro-tts](https://github.com/chasedputnam/go-kokoro-tts)；
 Kokoro 与 Kitten 共用一份 ONNX Runtime 环境。
 
+## 界面预览
+
+桌面界面：
+
+![VoxLab 桌面界面](docs/images/voxlab-desktop.png)
+
+手机界面：
+
+<img src="docs/images/voxlab-mobile.png" width="340" alt="VoxLab 手机界面">
+
 ## 系统要求
 
 - Go 1.26 或更高版本，且启用 CGO。
