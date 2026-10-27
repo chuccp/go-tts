@@ -724,6 +724,7 @@ input[type="range"]::-moz-range-thumb {
 .player {
   position: relative;
   z-index: 2;
+  min-height: 132px;
   padding: 17px;
   border-top: 1px solid var(--line);
   background: #181e1b;
@@ -763,6 +764,11 @@ audio {
 
 .download-link:hover {
   text-decoration: underline;
+}
+
+.download-link.is-disabled {
+  pointer-events: none;
+  color: var(--dim);
 }
 
 .result-footer {
@@ -1014,14 +1020,10 @@ audio {
   }
 
   .result-panel {
-    display: none;
+    display: flex;
     min-height: 0;
     border-radius: 12px;
     box-shadow: none;
-  }
-
-  .result-panel.has-output {
-    display: flex;
   }
 
   .result-visual,
@@ -1030,6 +1032,7 @@ audio {
   }
 
   .player {
+    min-height: 104px;
     padding: 11px;
     border-top: 0;
     border-radius: 12px;

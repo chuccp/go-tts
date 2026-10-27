@@ -135,18 +135,18 @@
             </div>
           </div>
 
-          <div id="player" class="player" hidden>
+          <div id="player" class="player">
             <div class="player-meta">
               <div>
                 <span class="result-kicker">音频输出</span>
-                <strong id="player-title">生成完成</strong>
+                <strong id="player-title">等待生成</strong>
               </div>
               <span id="audio-duration" class="duration">00:00</span>
             </div>
-            <audio id="audio" controls preload="metadata"></audio>
+            <audio id="audio" controls preload="metadata" aria-disabled="true"></audio>
             <div class="player-footer">
-              <span id="player-detail"></span>
-              <a id="download" class="download-link" href="#" download>下载音频</a>
+              <span id="player-detail">选择文本和音色后点击生成</span>
+              <a id="download" class="download-link is-disabled" href="#" download aria-disabled="true">下载音频</a>
             </div>
           </div>
 

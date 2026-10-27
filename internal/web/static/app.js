@@ -13,7 +13,6 @@
   const buttonLabel = synthesize.querySelector(".button-label");
   const errorBox = document.getElementById("error-box");
   const player = document.getElementById("player");
-  const resultPanel = document.querySelector(".result-panel");
   const audio = document.getElementById("audio");
   const playerTitle = document.getElementById("player-title");
   const playerDetail = document.getElementById("player-detail");
@@ -266,10 +265,11 @@
       const option = voiceSelect.selectedOptions[0];
       playerTitle.textContent = `${engine.name} · ${option?.textContent || voiceSelect.value}`;
       playerDetail.textContent = `${Number(speed.value).toFixed(2)}× 语速 · ${(blob.size / 1024).toFixed(0)} KB`;
+      audio.removeAttribute("aria-disabled");
       download.href = audioURL;
       download.download = `voxlab-${selectedEngine}-${Date.now()}.${blob.type.includes("wav") ? "wav" : "mp3"}`;
-      player.hidden = false;
-      resultPanel.classList.add("has-output");
+      download.classList.remove("is-disabled");
+      download.removeAttribute("aria-disabled");
       resultPlaceholder.hidden = true;
       player.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (error) {
