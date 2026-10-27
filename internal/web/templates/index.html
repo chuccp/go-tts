@@ -1,0 +1,171 @@
+{{define "index.html"}}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Kokoro、Kitten TTS 与 Edge TTS 多引擎文字转语音工作台">
+  <title>VoxLab · 多引擎文字转语音</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="VoxLab 首页">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <span>
+          <strong>VoxLab</strong>
+          <small>多引擎语音工坊</small>
+        </span>
+      </a>
+      <div class="topbar-meta">
+        <span class="live-dot"></span>
+        <span>Kokoro · Kitten · Edge</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow">TEXT TO SPEECH</div>
+        <h1>把文字，变成<br><em>有温度的声音。</em></h1>
+        <p>一个界面切换三套引擎。本地模型负责隐私与离线，Edge 提供更广的语言覆盖。</p>
+      </section>
+
+      <section class="workspace" aria-label="语音合成工作台">
+        <form id="tts-form" class="composer">
+          <div class="section-heading">
+            <div>
+              <span class="step-number">01</span>
+              <h2>输入文本</h2>
+            </div>
+            <span id="char-count" class="char-count">0 / {{.MaxTextRunes}}</span>
+          </div>
+
+          <label class="sr-only" for="text">需要转换的文字</label>
+          <textarea id="text" name="text" maxlength="{{.MaxTextRunes}}" rows="8"
+            placeholder="在这里输入或粘贴文字……&#10;&#10;例如：欢迎使用 VoxLab。今天，我们把文字变成声音。"></textarea>
+
+          <div class="sample-row" aria-label="示例文本">
+            <span>试试：</span>
+            <button type="button" class="sample-chip" data-sample="zh">中文叙事</button>
+            <button type="button" class="sample-chip" data-sample="en">English</button>
+            <button type="button" class="sample-chip" data-sample="quote">短句</button>
+          </div>
+
+          <div class="section-heading engine-heading">
+            <div>
+              <span class="step-number">02</span>
+              <h2>选择引擎</h2>
+            </div>
+            <span class="hint">本地模型需要预先下载</span>
+          </div>
+
+          <div class="engine-grid" role="radiogroup" aria-label="语音引擎">
+            {{range .Engines}}
+            <button type="button"
+              class="engine-card{{if not .Available}} is-unavailable{{end}}"
+              data-engine="{{.ID}}"
+              role="radio"
+              aria-checked="{{if eq .ID $.DefaultEngine}}true{{else}}false{{end}}"
+              {{if not .Available}}disabled title="{{.Error}}"{{end}}>
+              <span class="engine-icon engine-{{.ID}}" aria-hidden="true"></span>
+              <span class="engine-copy">
+                <strong>{{.Name}}</strong>
+                <small>{{.Description}}</small>
+              </span>
+              <span class="engine-state">
+                {{if .Available}}<i></i>可用{{else}}未就绪{{end}}
+              </span>
+            </button>
+            {{end}}
+          </div>
+
+          <div class="settings-grid">
+            <div class="field">
+              <div class="field-label-row">
+                <label for="voice">音色</label>
+                <span id="voice-locale"></span>
+              </div>
+              <div class="select-wrap">
+                <select id="voice" name="voice">
+                  {{range .DefaultVoices}}
+                  <option value="{{.ID}}" data-locale="{{.Locale}}" data-gender="{{.Gender}}" data-language="{{.Language}}">
+                    {{.Name}}{{if .Locale}} · {{.Locale}}{{end}}{{if .Gender}} · {{.Gender}}{{end}}
+                  </option>
+                  {{end}}
+                </select>
+                <span class="select-arrow" aria-hidden="true"></span>
+              </div>
+              <p id="voice-status" class="field-note"></p>
+            </div>
+
+            <div class="field speed-field">
+              <div class="field-label-row">
+                <label for="speed">语速</label>
+                <output id="speed-value" for="speed">1.00×</output>
+              </div>
+              <input id="speed" name="speed" type="range" min="0.5" max="2" step="0.05" value="1">
+              <div class="range-labels" aria-hidden="true"><span>0.5×</span><span>2.0×</span></div>
+            </div>
+          </div>
+
+          <div id="error-box" class="notice error" role="alert" hidden></div>
+
+          <button id="synthesize" class="primary-button" type="submit">
+            <span class="button-icon" aria-hidden="true"></span>
+            <span class="button-label">生成语音</span>
+            <span class="button-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <aside class="result-panel" aria-label="合成结果">
+          <div class="result-visual">
+            <div class="orb orb-one"></div>
+            <div class="orb orb-two"></div>
+            <div class="wave" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="result-placeholder">
+              <span class="result-kicker">READY TO SPEAK</span>
+              <p>输入文字并生成，<br>声音会出现在这里。</p>
+            </div>
+          </div>
+
+          <div id="player" class="player" hidden>
+            <div class="player-meta">
+              <div>
+                <span class="result-kicker">NOW PLAYING</span>
+                <strong id="player-title">生成完成</strong>
+              </div>
+              <span id="audio-duration" class="duration">00:00</span>
+            </div>
+            <audio id="audio" controls preload="metadata"></audio>
+            <div class="player-footer">
+              <span id="player-detail"></span>
+              <a id="download" class="download-link" href="#" download>下载音频</a>
+            </div>
+          </div>
+
+          <div class="result-footer">
+            <div><span>01</span>选择引擎</div>
+            <div><span>02</span>调节音色</div>
+            <div><span>03</span>生成播放</div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>VoxLab · Go + html/template</span>
+      <span>Kokoro 与 Kitten 在本地推理；Edge TTS 需要网络连接</span>
+    </footer>
+  </div>
+
+  <script id="engine-data" type="application/json">{{.EngineDataJSON}}</script>
+</body>
+</html>
+{{end}}

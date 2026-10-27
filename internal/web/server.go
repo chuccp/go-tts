@@ -1,0 +1,330 @@
+package web
+
+import (
+	"bytes"
+	"context"
+	"embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"html/template"
+	"io/fs"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/cao/go-tts/internal/tts"
+	"github.com/chuccp/go-web-frame/core"
+	frameweb "github.com/chuccp/go-web-frame/web"
+)
+
+//go:embed templates/*.html static/*
+var assets embed.FS
+
+type App struct {
+	core.IService
+	service   *tts.Service
+	templates *template.Template
+	static    http.FileSystem
+	logger    *log.Logger
+}
+
+type pageData struct {
+	Engines        []tts.EngineStatus
+	DefaultEngine  string
+	DefaultVoices  []tts.Voice
+	MaxTextRunes   int
+	EngineDataJSON template.JS
+}
+
+type clientEngine struct {
+	ID            string      `json:"id"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	Local         bool        `json:"local"`
+	Available     bool        `json:"available"`
+	SupportsSpeed bool        `json:"supportsSpeed"`
+	DefaultVoice  string      `json:"defaultVoice,omitempty"`
+	Error         string      `json:"error,omitempty"`
+	Voices        []tts.Voice `json:"voices"`
+}
+
+func NewApp(service *tts.Service, logger *log.Logger) (*App, error) {
+	if service == nil {
+		return nil, errors.New("TTS service is required")
+	}
+	if logger == nil {
+		logger = log.Default()
+	}
+	templates, err := template.ParseFS(assets, "templates/*.html")
+	if err != nil {
+		return nil, fmt.Errorf("parse templates: %w", err)
+	}
+	staticFS, err := fs.Sub(assets, "static")
+	if err != nil {
+		return nil, fmt.Errorf("open static assets: %w", err)
+	}
+	return &App{
+		service:   service,
+		templates: templates,
+		static:    http.FS(staticFS),
+		logger:    logger,
+	}, nil
+}
+
+// Init registers the application through Go Web Frame's controller system.
+func (a *App) Init(ctx *core.Context) error {
+	ctx.Handle(http.MethodGet, "/", a.home)
+	ctx.Handle(http.MethodHead, "/", a.home)
+	ctx.Any("/api/voices", a.voices)
+	ctx.Any("/api/synthesize", a.synthesize)
+	ctx.Any("/healthz", a.health)
+	ctx.StaticFs("/static", a.static)
+	return nil
+}
+
+func (a *App) home(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodGet && req.Request().Method != http.MethodHead {
+		return nil, methodNotAllowed(req, http.MethodGet, http.MethodHead)
+	}
+	ctx, cancel := context.WithTimeout(req.Ctx(), 3*time.Second)
+	defer cancel()
+	statuses := a.service.Statuses(ctx)
+	defaultEngine := "edge"
+	found := false
+	for _, status := range statuses {
+		if status.ID == defaultEngine && status.Available {
+			found = true
+			break
+		}
+	}
+	if !found {
+		for _, status := range statuses {
+			if status.Available {
+				defaultEngine = status.ID
+				found = true
+				break
+			}
+		}
+	}
+	if !found && len(statuses) > 0 {
+		defaultEngine = statuses[0].ID
+	}
+	var defaultVoices []tts.Voice
+	for _, status := range statuses {
+		if status.ID == defaultEngine {
+			defaultVoices = prioritizeVoice(status.Voices, a.service.DefaultVoice(defaultEngine))
+			break
+		}
+	}
+	clientEngines := make([]clientEngine, 0, len(statuses))
+	for _, status := range statuses {
+		clientEngines = append(clientEngines, clientEngine{
+			ID:            status.ID,
+			Name:          status.Name,
+			Description:   status.Description,
+			Local:         status.Local,
+			Available:     status.Available,
+			SupportsSpeed: status.SupportsSpeed,
+			DefaultVoice:  status.DefaultVoice,
+			Error:         status.Error,
+			Voices:        status.Voices,
+		})
+	}
+	engineJSON, err := json.Marshal(clientEngines)
+	if err != nil {
+		return nil, frameweb.NewInternalError().WithError(err)
+	}
+	data := pageData{
+		Engines:        statuses,
+		DefaultEngine:  defaultEngine,
+		DefaultVoices:  defaultVoices,
+		MaxTextRunes:   a.service.MaxTextRunes(),
+		EngineDataJSON: template.JS(engineJSON),
+	}
+	var body bytes.Buffer
+	if err := a.templates.ExecuteTemplate(&body, "index.html", data); err != nil {
+		return nil, frameweb.NewInternalError().WithError(err)
+	}
+	header := req.Response().Header()
+	header.Set("Content-Type", "text/html; charset=utf-8")
+	header.Set("Cache-Control", "no-cache")
+	if req.Request().Method == http.MethodHead {
+		req.Response().WriteHeader(http.StatusOK)
+		return nil, nil
+	}
+	req.GinContext().Data(http.StatusOK, "text/html; charset=utf-8", body.Bytes())
+	return nil, nil
+}
+
+func (a *App) voices(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodGet {
+		return nil, methodNotAllowed(req, http.MethodGet)
+	}
+	engineID := strings.TrimSpace(req.Query("engine"))
+	if engineID == "" {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "engine is required"})
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(req.Ctx(), 20*time.Second)
+	defer cancel()
+	voices, err := a.service.Voices(ctx, engineID)
+	if err != nil && len(voices) == 0 {
+		writeJSON(req, http.StatusBadGateway, map[string]any{
+			"warning": err.Error(),
+			"voices":  []tts.Voice{},
+		})
+		return nil, nil
+	}
+	if len(voices) == 0 {
+		writeJSON(req, http.StatusBadGateway, map[string]any{"error": "no voices available"})
+		return nil, nil
+	}
+	header := req.Response().Header()
+	header.Set("Cache-Control", "private, max-age=300")
+	response := map[string]any{"voices": voices}
+	if err != nil {
+		header.Set("X-Voice-Source", "fallback")
+		response["warning"] = err.Error()
+	}
+	writeJSON(req, http.StatusOK, response)
+	return nil, nil
+}
+
+func (a *App) synthesize(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodPost {
+		return nil, methodNotAllowed(req, http.MethodPost)
+	}
+	req.Request().Body = http.MaxBytesReader(req.GinContext().Writer, req.Request().Body, 64<<10)
+	if err := req.Request().ParseForm(); err != nil {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "invalid form data"})
+		return nil, nil
+	}
+	speed, err := strconv.ParseFloat(defaultString(req.GetFormParam("speed"), "1.0"), 64)
+	if err != nil {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "invalid speed"})
+		return nil, nil
+	}
+	engineID := req.GetFormParam("engine")
+	voice := req.GetFormParam("voice")
+	text := req.GetFormParam("text")
+	audio, err := a.service.Synthesize(req.Ctx(), engineID, voice, text, speed)
+	if err != nil {
+		status := http.StatusBadGateway
+		if errors.Is(err, tts.ErrEmptyText) ||
+			errors.Is(err, tts.ErrTextTooLong) ||
+			errors.Is(err, tts.ErrBadSpeed) ||
+			strings.Contains(err.Error(), "unknown engine") ||
+			strings.Contains(err.Error(), "voice is required") ||
+			strings.Contains(err.Error(), "not available") {
+			status = http.StatusBadRequest
+		}
+		a.logger.Printf("synthesis failed engine=%s voice=%s: %v", engineID, voice, err)
+		writeJSON(req, status, map[string]any{"error": err.Error()})
+		return nil, nil
+	}
+	filename := fmt.Sprintf("tts-%s-%s.%s", engineID, time.Now().Format("20060102-150405"), audio.Extension)
+	header := req.Response().Header()
+	header.Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, filename))
+	header.Set("Cache-Control", "no-store")
+	header.Set("X-TTS-Engine", engineID)
+	header.Set("X-TTS-Voice", voice)
+	req.GinContext().Data(http.StatusOK, audio.MIMEType, audio.Data)
+	return nil, nil
+}
+
+func (a *App) health(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodGet {
+		return nil, methodNotAllowed(req, http.MethodGet)
+	}
+	ctx, cancel := context.WithTimeout(req.Ctx(), 2*time.Second)
+	defer cancel()
+	type engineHealth struct {
+		ID        string `json:"id"`
+		Available bool   `json:"available"`
+		Error     string `json:"error,omitempty"`
+	}
+	statuses := a.service.Statuses(ctx)
+	result := make([]engineHealth, 0, len(statuses))
+	for _, status := range statuses {
+		result = append(result, engineHealth{
+			ID:        status.ID,
+			Available: status.Available,
+			Error:     status.Error,
+		})
+	}
+	writeJSON(req, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"engines": result,
+	})
+	return nil, nil
+}
+
+type RequestFilter struct {
+	core.IFilter
+	Logger *log.Logger
+}
+
+func NewRequestFilter(logger *log.Logger) *RequestFilter {
+	if logger == nil {
+		logger = log.Default()
+	}
+	return &RequestFilter{Logger: logger}
+}
+
+func (f *RequestFilter) Init(*core.Context) error {
+	return nil
+}
+
+func (f *RequestFilter) Handle(next frameweb.FilterChain, req *frameweb.Request) (any, error) {
+	started := time.Now()
+	header := req.Response().Header()
+	header.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+	header.Set("Referrer-Policy", "no-referrer")
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("X-Frame-Options", "DENY")
+
+	result, err := next.Next()
+	path := req.URL().Path
+	if path != "/static/app.js" && path != "/static/style.css" {
+		f.Logger.Printf("%s %s %s", req.Request().Method, path, time.Since(started).Round(time.Millisecond))
+	}
+	return result, err
+}
+
+func methodNotAllowed(req *frameweb.Request, allowed ...string) error {
+	req.Response().Header().Set("Allow", strings.Join(allowed, ", "))
+	return frameweb.NewMethodNotAllowed()
+}
+
+func writeJSON(req *frameweb.Request, status int, value any) {
+	req.Response().JSON(status, value)
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func prioritizeVoice(voices []tts.Voice, preferred string) []tts.Voice {
+	if preferred == "" {
+		return voices
+	}
+	result := make([]tts.Voice, 0, len(voices))
+	for _, voice := range voices {
+		if voice.ID == preferred {
+			result = append(result, voice)
+			break
+		}
+	}
+	for _, voice := range voices {
+		if voice.ID != preferred {
+			result = append(result, voice)
+		}
+	}
+	return result
+}

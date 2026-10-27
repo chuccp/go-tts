@@ -28,6 +28,22 @@ go.work.sum
 # env file
 .env
 
+# Local TTS models and runtime binaries
+/models/
+/runtime/
+/onnxruntime/
+*.onnx
+*.npz
+*.npy
+onnxruntime.dll
+libonnxruntime.so*
+libonnxruntime.dylib
+
+# Generated audio
+/output/
+*.wav
+*.mp3
+
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
