@@ -42,6 +42,21 @@ Windows 可下载
 
 ## 下载本地模型
 
+预构建的 Kokoro FP32、Kokoro INT8、音色文件以及 Kitten TTS 模型统一发布在
+[coke123/go-tts-models](https://huggingface.co/coke123/go-tts-models/tree/main)。
+
+使用 Hugging Face CLI 一次下载默认 INT8 模型和 Kitten 所需文件：
+
+```powershell
+hf download coke123/go-tts-models `
+  kokoro/kokoro-v0_19-int8.onnx `
+  kokoro/voices-v1.0.bin `
+  kitten/kitten_tts_nano_v0_8.onnx `
+  kitten/voices.npz `
+  kitten/config.json `
+  --local-dir models
+```
+
 ### Kokoro
 
 ```text
@@ -52,22 +67,16 @@ models/
     voices-v1.0.bin
 ```
 
-- 模型：[kokoro-v0_19.onnx](https://github.com/nazdridoy/kokoro-tts/releases/download/v1.0.0/kokoro-v0_19.onnx)
-- 音色：[voices-v1.0.bin](https://github.com/nazdridoy/kokoro-tts/releases/download/v1.0.0/voices-v1.0.bin)
+- FP32 原模型：[kokoro-v0_19.onnx](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/kokoro-v0_19.onnx)
+- INT8 模型：[kokoro-v0_19-int8.onnx](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/kokoro-v0_19-int8.onnx)
+- 音色：[voices-v1.0.bin](https://huggingface.co/coke123/go-tts-models/resolve/main/kokoro/voices-v1.0.bin)
 
 虽然音色文件扩展名是 `.bin`，实际是包含多个 `.npy` 的 NPZ。应用也支持包含多个
 `.npz`、`.npy` 或 raw float32 `.bin` 文件的音色目录。
 
-默认配置使用约 88 MB 的 INT8 模型。首次使用可执行一次性量化：
-
-```powershell
-python -m pip install onnx onnxruntime
-python scripts/quantize-kokoro.py `
-  models/kokoro/kokoro-v0_19.onnx `
-  models/kokoro/kokoro-v0_19-int8.onnx
-```
-
-实测 INT8 模型启动工作集约 302 MB，原 FP32 模型约 517 MB。
+默认配置使用约 88 MB 的预量化 INT8 模型，无需再下载权重转换工具或自行量化。
+实测 INT8 模型启动工作集约 302 MB，原 FP32 模型约 517 MB。INT8 与 FP32 均保持相同的
+`tokens/style/speed -> audio` 输入输出签名，可通过 `application.yml` 切换。
 
 ### Kitten TTS
 
@@ -79,7 +88,7 @@ models/
     config.json
 ```
 
-从 [KittenML/kitten-tts-nano-0.8](https://huggingface.co/KittenML/kitten-tts-nano-0.8/tree/main)
+从 [coke123/go-tts-models/kitten](https://huggingface.co/coke123/go-tts-models/tree/main/kitten)
 下载 `kitten_tts_nano_v0_8.onnx`、`voices.npz` 和 `config.json`。也可换用同系列其他
 轻量 ONNX 模型，并在 `application.yml` 中指定文件路径。
 
