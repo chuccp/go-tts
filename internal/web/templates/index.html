@@ -40,18 +40,17 @@
             <div>
               <span class="step-number">01</span>
               <h2>输入文本</h2>
+              <div class="input-meta">
+                <div class="sample-row" aria-label="示例文本">
+                  <span>试试：</span>
+                  <button type="button" class="sample-chip" data-sample="zh">中文叙事</button>
+                  <button type="button" class="sample-chip" data-sample="en">English</button>
+                  <button type="button" class="sample-chip" data-sample="quote">短句</button>
+                </div>
+                <span id="language-detection" class="detection-badge" aria-live="polite"></span>
+              </div>
             </div>
             <span id="char-count" class="char-count">0 / {{.MaxTextRunes}}</span>
-          </div>
-
-          <div class="input-meta">
-            <div class="sample-row" aria-label="示例文本">
-              <span>试试：</span>
-              <button type="button" class="sample-chip" data-sample="zh">中文叙事</button>
-              <button type="button" class="sample-chip" data-sample="en">English</button>
-              <button type="button" class="sample-chip" data-sample="quote">短句</button>
-            </div>
-            <span id="language-detection" class="detection-badge" aria-live="polite"></span>
           </div>
 
           <label class="sr-only" for="text">需要转换的文字</label>
