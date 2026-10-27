@@ -149,8 +149,8 @@ input[type="range"] {
 }
 
 .hero {
-  max-width: 830px;
-  padding: 76px 0 55px;
+  max-width: 900px;
+  padding: 52px 0 38px;
 }
 
 .eyebrow,
@@ -162,22 +162,16 @@ input[type="range"] {
 }
 
 .hero h1 {
-  margin: 16px 0 20px;
-  font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
-  font-size: clamp(44px, 7vw, 86px);
-  font-weight: 400;
-  line-height: 0.98;
-  letter-spacing: -0.045em;
+  margin: 12px 0 14px;
+  font-size: clamp(30px, 4.5vw, 46px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }
 
-.hero h1 em {
-  color: var(--accent);
-  font-weight: 400;
-}
-
 .hero p {
-  max-width: 600px;
+  max-width: 780px;
   margin: 0;
   color: var(--muted);
   font-size: 15px;
@@ -853,12 +847,12 @@ audio {
   }
 
   .hero {
-    padding: 48px 4px 38px;
+    padding: 36px 4px 30px;
   }
 
   .hero h1 {
-    font-size: clamp(38px, 12vw, 52px);
-    letter-spacing: -0.055em;
+    font-size: clamp(28px, 9vw, 38px);
+    letter-spacing: -0.02em;
   }
 
   .composer {

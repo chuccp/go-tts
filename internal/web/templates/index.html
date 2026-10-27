@@ -29,10 +29,10 @@
     </header>
 
     <main>
-      <section class="hero">
-        <div class="eyebrow">TEXT TO SPEECH</div>
-        <h1>把文字，变成<br><em>有温度的声音。</em></h1>
-        <p>一个界面切换三套引擎。本地模型负责隐私与离线，Edge 提供更广的语言覆盖。</p>
+      <section class="hero" aria-labelledby="page-title">
+        <div class="eyebrow">MULTI-ENGINE TEXT TO SPEECH</div>
+        <h1 id="page-title">多引擎文字转语音</h1>
+        <p>输入文字后选择引擎、音色和语速，生成可试听和下载的 WAV 或 MP3 音频。Kokoro 与 Kitten 在本地运行，Edge TTS 使用在线语音服务。</p>
       </section>
 
       <section class="workspace" aria-label="语音合成工作台">
@@ -130,15 +130,15 @@
               <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
             </div>
             <div class="result-placeholder">
-              <span class="result-kicker">READY TO SPEAK</span>
-              <p>输入文字并生成，<br>声音会出现在这里。</p>
+              <span class="result-kicker">合成结果</span>
+              <p>生成完成后，<br>可在此试听和下载音频。</p>
             </div>
           </div>
 
           <div id="player" class="player" hidden>
             <div class="player-meta">
               <div>
-                <span class="result-kicker">NOW PLAYING</span>
+                <span class="result-kicker">音频输出</span>
                 <strong id="player-title">生成完成</strong>
               </div>
               <span id="audio-duration" class="duration">00:00</span>
