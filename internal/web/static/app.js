@@ -13,6 +13,7 @@
   const buttonLabel = synthesize.querySelector(".button-label");
   const errorBox = document.getElementById("error-box");
   const player = document.getElementById("player");
+  const resultPanel = document.querySelector(".result-panel");
   const audio = document.getElementById("audio");
   const playerTitle = document.getElementById("player-title");
   const playerDetail = document.getElementById("player-detail");
@@ -268,6 +269,7 @@
       download.href = audioURL;
       download.download = `voxlab-${selectedEngine}-${Date.now()}.${blob.type.includes("wav") ? "wav" : "mp3"}`;
       player.hidden = false;
+      resultPanel.classList.add("has-output");
       resultPlaceholder.hidden = true;
       player.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (error) {
