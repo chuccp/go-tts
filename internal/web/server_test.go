@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -46,7 +47,7 @@ func (f *fakeEngine) Voices(context.Context) ([]tts.Voice, error) {
 	if f.voices != nil {
 		return f.voices, f.voicesErr
 	}
-	return []tts.Voice{{ID: "test", Name: "Test", Locale: "zh-CN"}}, f.voicesErr
+	return []tts.Voice{{ID: "test", Name: "Test", Locale: "zh-CN", Language: "中文", LanguageCode: "zh"}}, f.voicesErr
 }
 func (f *fakeEngine) Synthesize(context.Context, string, string, float64) (tts.Audio, error) {
 	return tts.Audio{
@@ -192,6 +193,29 @@ func TestSynthesizeRejectsUnknownEngine(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestDetectLanguageEndpoint(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, tts.NewService(&fakeEngine{available: true}))
+	form := url.Values{"text": {"你好，这是一个中文语音测试。"}}
+	request := newTestRequest(http.MethodPost, "/api/detect-language", form.Encode())
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var result struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Code != "zh" || result.Name != "中文" {
+		t.Fatalf("unexpected detection: %+v", result)
 	}
 }
 

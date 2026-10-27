@@ -20,11 +20,12 @@ var (
 )
 
 type Voice struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Locale   string `json:"locale,omitempty"`
-	Gender   string `json:"gender,omitempty"`
-	Language string `json:"language,omitempty"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Locale       string `json:"locale,omitempty"`
+	Gender       string `json:"gender,omitempty"`
+	Language     string `json:"language,omitempty"`
+	LanguageCode string `json:"languageCode,omitempty"`
 }
 
 type Audio struct {

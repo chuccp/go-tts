@@ -66,10 +66,11 @@ func (e *KokoroEngine) initialize() error {
 		validStyles[name] = tensor
 		locale := kokoroLocale(name)
 		voices = append(voices, Voice{
-			ID:       name,
-			Name:     prettyKokoroName(name),
-			Locale:   locale,
-			Language: kokoroLanguageName(locale),
+			ID:           name,
+			Name:         prettyKokoroName(name),
+			Locale:       locale,
+			Language:     kokoroLanguageName(locale),
+			LanguageCode: languageCodeFromLocale(locale),
 		})
 	}
 	if len(voices) == 0 {
@@ -81,10 +82,14 @@ func (e *KokoroEngine) initialize() error {
 	if err := ensureONNXRuntime(FindONNXRuntime(e.cfg.RuntimeLib)); err != nil {
 		return err
 	}
+	tokenInput, outputName, err := kokoroIONames(e.cfg.ModelPath)
+	if err != nil {
+		return err
+	}
 	session, err := newONNXSession(
 		e.cfg.ModelPath,
-		[]string{"tokens", "style", "speed"},
-		[]string{"audio"},
+		[]string{tokenInput, "style", "speed"},
+		[]string{outputName},
 	)
 	if err != nil {
 		return err
@@ -247,6 +252,36 @@ func (e *KokoroEngine) synthesizeChunk(
 	return flattenTensor(outputs[0])
 }
 
+func kokoroIONames(modelPath string) (string, string, error) {
+	inputs, outputs, err := ort.GetInputOutputInfo(modelPath)
+	if err != nil {
+		return "", "", fmt.Errorf("inspect Kokoro model: %w", err)
+	}
+	inputSet := make(map[string]bool, len(inputs))
+	for _, input := range inputs {
+		inputSet[input.Name] = true
+	}
+	outputSet := make(map[string]bool, len(outputs))
+	for _, output := range outputs {
+		outputSet[output.Name] = true
+	}
+	tokenInput := "tokens"
+	if !inputSet[tokenInput] && inputSet["input_ids"] {
+		tokenInput = "input_ids"
+	}
+	outputName := "audio"
+	if !outputSet[outputName] && outputSet["waveform"] {
+		outputName = "waveform"
+	}
+	if !inputSet[tokenInput] || !inputSet["style"] || !inputSet["speed"] {
+		return "", "", fmt.Errorf("unsupported Kokoro inputs: %v", inputs)
+	}
+	if !outputSet[outputName] {
+		return "", "", fmt.Errorf("unsupported Kokoro outputs: %v", outputs)
+	}
+	return tokenInput, outputName, nil
+}
+
 func (e *KokoroEngine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -302,6 +337,17 @@ func kokoroLanguageName(locale string) string {
 	default:
 		return strings.ToUpper(locale)
 	}
+}
+
+func languageCodeFromLocale(locale string) string {
+	switch locale {
+	case "cmn":
+		return "zh"
+	}
+	if language, _, ok := strings.Cut(locale, "-"); ok {
+		return strings.ToLower(language)
+	}
+	return strings.ToLower(locale)
 }
 
 func prettyKokoroName(voice string) string {

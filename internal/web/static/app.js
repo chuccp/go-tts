@@ -3,9 +3,15 @@
 
   const form = document.getElementById("tts-form");
   const text = document.getElementById("text");
+  const workspace = document.querySelector(".workspace");
+  const inputMeta = document.querySelector(".input-meta");
+  const resultPanel = document.querySelector(".result-panel");
+  const languageSelect = document.getElementById("language");
   const voiceSelect = document.getElementById("voice");
   const voiceStatus = document.getElementById("voice-status");
   const voiceLocale = document.getElementById("voice-locale");
+  const languageDetection = document.getElementById("language-detection");
+  const languageWarning = document.getElementById("language-warning");
   const speed = document.getElementById("speed");
   const speedValue = document.getElementById("speed-value");
   const charCount = document.getElementById("char-count");
@@ -24,9 +30,13 @@
   const initialEngine = document.querySelector(".engine-card[aria-checked='true']");
   let selectedEngine = initialEngine?.dataset.engine || engines[0]?.id || "";
   let selectedVoice = voiceSelect.value;
+  let selectedLanguage = languageSelect.value;
+  let detectedLanguage = null;
   let audioURL = "";
   let loadingVoices = false;
   let statusTimer = 0;
+  let detectionTimer = 0;
+  let detectionSequence = 0;
 
   const samples = {
     zh: "欢迎使用 VoxLab。这里汇聚了 Kokoro、Kitten 与 Edge TTS 三套语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
@@ -37,6 +47,17 @@
   function activeEngine() {
     return engines.find((engine) => engine.id === selectedEngine);
   }
+
+  const mobileLayout = window.matchMedia("(max-width: 640px)");
+  function placeResultPanel() {
+    if (mobileLayout.matches) {
+      inputMeta.after(resultPanel);
+    } else {
+      workspace.append(resultPanel);
+    }
+  }
+  placeResultPanel();
+  mobileLayout.addEventListener("change", placeResultPanel);
 
   function showError(message) {
     errorBox.textContent = message;
@@ -67,6 +88,7 @@
   function updateVoiceMeta() {
     const option = voiceSelect.selectedOptions[0];
     selectedVoice = voiceSelect.value;
+    selectedLanguage = languageSelect.value;
     if (!option) {
       voiceLocale.textContent = "";
       return;
@@ -75,34 +97,95 @@
     voiceLocale.textContent = bits.join(" · ");
   }
 
-  function populateVoices(voices, requestedVoice = "") {
-    voiceSelect.replaceChildren();
-    if (!voices || voices.length === 0) {
+  function voiceLanguageCode(voice) {
+    return voice.languageCode || String(voice.locale || "").split("-")[0].toLowerCase();
+  }
+
+  function activeVoices(engine) {
+    return Array.isArray(engine?.voices) ? engine.voices : [];
+  }
+
+  function populateLanguages(engine, preferredCode = "") {
+    const voices = activeVoices(engine);
+    const languages = new Map();
+    for (const voice of voices) {
+      const code = voiceLanguageCode(voice);
+      if (!code) {
+        continue;
+      }
+      if (!languages.has(code)) {
+        languages.set(code, { code, name: voice.language || code, count: 0 });
+      }
+      languages.get(code).count += 1;
+    }
+
+    const previous = preferredCode || languageSelect.value || selectedLanguage;
+    languageSelect.replaceChildren();
+    if (languages.size === 0) {
       const option = document.createElement("option");
-      option.textContent = "没有可用音色";
+      option.textContent = "无可用语言";
       option.disabled = true;
-      voiceSelect.append(option);
-      updateVoiceMeta();
+      languageSelect.append(option);
+      selectedLanguage = "";
       return;
     }
 
-    const groups = new Map();
+    const items = Array.from(languages.values());
+    const defaultVoice = voices.find((voice) => voice.id === engine?.defaultVoice);
+    const priority = new Map([["zh", 0], ["en", 1], ["ja", 2], ["ko", 3]]);
+    items.sort((a, b) => {
+      if (a.code === previous) return -1;
+      if (b.code === previous) return 1;
+      const ap = priority.has(a.code) ? priority.get(a.code) : 99;
+      const bp = priority.has(b.code) ? priority.get(b.code) : 99;
+      return ap - bp || a.name.localeCompare(b.name);
+    });
+    for (const language of items) {
+      const option = document.createElement("option");
+      option.value = language.code;
+      option.textContent = `${language.name} · ${language.count}`;
+      option.dataset.name = language.name;
+      languageSelect.append(option);
+    }
+
+    let target = previous;
+    if (!languages.has(target) && detectedLanguage && languages.has(detectedLanguage.code)) {
+      target = detectedLanguage.code;
+    }
+    if (!languages.has(target) && defaultVoice && languages.has(voiceLanguageCode(defaultVoice))) {
+      target = voiceLanguageCode(defaultVoice);
+    }
+    if (!languages.has(target)) {
+      target = items[0].code;
+    }
+    languageSelect.value = target;
+    selectedLanguage = target;
+  }
+
+  function populateVoices(engine, requestedVoice = "") {
+    const allVoices = activeVoices(engine);
+    const voices = allVoices.filter((voice) => voiceLanguageCode(voice) === languageSelect.value);
+    voiceSelect.replaceChildren();
+    if (voices.length === 0) {
+      const option = document.createElement("option");
+      option.textContent = "没有可用角色";
+      option.disabled = true;
+      voiceSelect.append(option);
+      updateVoiceMeta();
+      updateLanguageWarning();
+      return;
+    }
+
     for (const voice of voices) {
-      const key = [voice.language || voice.locale || "其他", voice.locale || ""].filter(Boolean).join(" · ");
-      if (!groups.has(key)) {
-        const group = document.createElement("optgroup");
-        group.label = key;
-        groups.set(key, group);
-      }
       const option = document.createElement("option");
       option.value = voice.id;
       option.textContent = [voice.name, voice.gender].filter(Boolean).join(" · ");
       option.dataset.locale = voice.locale || "";
       option.dataset.gender = voice.gender || "";
       option.dataset.language = voice.language || "";
-      groups.get(key).append(option);
+      option.dataset.languageCode = voiceLanguageCode(voice);
+      voiceSelect.append(option);
     }
-    voiceSelect.append(...groups.values());
 
     const preferred = voices.find((voice) => voice.id === requestedVoice);
     if (preferred) {
@@ -111,6 +194,7 @@
       voiceSelect.selectedIndex = 0;
     }
     updateVoiceMeta();
+    updateLanguageWarning();
   }
 
   async function loadVoices(engineID) {
@@ -118,7 +202,9 @@
     if (!engine) {
       return;
     }
-    populateVoices(engine.voices || [], selectedVoice);
+    const preferredLanguage = detectedLanguage?.code || selectedLanguage;
+    populateLanguages(engine, preferredLanguage);
+    populateVoices(engine, selectedVoice);
     if (!engine.available) {
       voiceStatus.textContent = engine.error || "引擎未就绪";
       return;
@@ -136,11 +222,12 @@
       }
       if (Array.isArray(payload.voices) && payload.voices.length > 0) {
         engine.voices = payload.voices;
-        populateVoices(payload.voices, selectedVoice);
+        populateLanguages(engine, detectedLanguage?.code || selectedLanguage);
+        populateVoices(engine, selectedVoice);
       }
       voiceStatus.textContent = payload.warning
         ? `在线音色暂不可用，已使用内置列表：${payload.warning}`
-        : `${voiceSelect.options.length} 个音色`;
+        : `${voiceSelect.options.length} 个${languageSelect.selectedOptions[0]?.dataset.name || ""}角色`;
     } catch (error) {
       voiceStatus.textContent = "音色同步失败，可继续使用当前列表";
     } finally {
@@ -155,12 +242,88 @@
     }
     selectedEngine = engineID;
     selectedVoice = engine.defaultVoice || "";
+    selectedLanguage = "";
     clearError();
     document.querySelectorAll(".engine-card").forEach((card) => {
       const active = card.dataset.engine === engineID;
       card.setAttribute("aria-checked", String(active));
     });
     loadVoices(engineID);
+  }
+
+  function updateLanguageWarning() {
+    const engine = activeEngine();
+    if (!engine || !detectedLanguage?.code) {
+      languageWarning.hidden = true;
+      return;
+    }
+    const voices = activeVoices(engine);
+    const supported = voices.some((voice) => voiceLanguageCode(voice) === detectedLanguage.code);
+    if (!supported) {
+      languageWarning.textContent = `检测到${detectedLanguage.name}，${engine.name} 当前没有该语言的角色。`;
+      languageWarning.hidden = false;
+      return;
+    }
+    const currentCode = languageSelect.value;
+    if (currentCode && currentCode !== detectedLanguage.code) {
+      const currentName = languageSelect.selectedOptions[0]?.dataset.name || currentCode;
+      languageWarning.textContent = `检测到${detectedLanguage.name}，当前角色语言为${currentName}，请确认选择。`;
+      languageWarning.hidden = false;
+      return;
+    }
+    languageWarning.hidden = true;
+  }
+
+  async function detectInputLanguage(content) {
+    const sequence = ++detectionSequence;
+    try {
+      const body = new URLSearchParams({ text: content });
+      const response = await fetch("/api/detect-language", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body
+      });
+      const result = await response.json();
+      if (sequence !== detectionSequence) {
+        return;
+      }
+      if (!response.ok || !result.code) {
+        detectedLanguage = null;
+        languageDetection.textContent = "语言：未识别";
+        updateLanguageWarning();
+        return;
+      }
+      detectedLanguage = result;
+      languageDetection.textContent = `检测到：${result.name} · ${result.confidence}%`;
+      const engine = activeEngine();
+      const supported = activeVoices(engine).some((voice) => voiceLanguageCode(voice) === result.code);
+      if (supported && languageSelect.value !== result.code) {
+        populateLanguages(engine, result.code);
+        populateVoices(engine, "");
+      } else {
+        updateLanguageWarning();
+      }
+    } catch (_) {
+      if (sequence === detectionSequence) {
+        detectedLanguage = null;
+        languageDetection.textContent = "语言检测失败";
+        updateLanguageWarning();
+      }
+    }
+  }
+
+  function scheduleLanguageDetection() {
+    window.clearTimeout(detectionTimer);
+    const content = text.value.trim();
+    if (!content) {
+      detectionSequence++;
+      detectedLanguage = null;
+      languageDetection.textContent = "";
+      updateLanguageWarning();
+      return;
+    }
+    languageDetection.textContent = "语言检测中…";
+    detectionTimer = window.setTimeout(() => detectInputLanguage(content), 350);
   }
 
   document.querySelectorAll(".engine-card").forEach((card) => {
@@ -171,15 +334,25 @@
     button.addEventListener("click", () => {
       text.value = samples[button.dataset.sample] || "";
       updateCharCount();
+      scheduleLanguageDetection();
       text.focus();
     });
   });
 
-  voiceSelect.addEventListener("change", updateVoiceMeta);
+  languageSelect.addEventListener("change", () => {
+    populateVoices(activeEngine(), "");
+  });
+  voiceSelect.addEventListener("change", () => {
+    updateVoiceMeta();
+    updateLanguageWarning();
+  });
   speed.addEventListener("input", () => {
     speedValue.textContent = `${Number(speed.value).toFixed(2)}×`;
   });
-  text.addEventListener("input", updateCharCount);
+  text.addEventListener("input", () => {
+    updateCharCount();
+    scheduleLanguageDetection();
+  });
 
   audio.addEventListener("loadedmetadata", () => {
     audioDuration.textContent = formatDuration(audio.duration);
@@ -226,6 +399,7 @@
 
     const body = new URLSearchParams({
       engine: selectedEngine,
+      language: languageSelect.value,
       voice: voiceSelect.value,
       text: content,
       speed: speed.value
@@ -281,6 +455,7 @@
 
   updateCharCount();
   updateVoiceMeta();
+  updateLanguageWarning();
   if (selectedEngine) {
     loadVoices(selectedEngine);
   }

@@ -32,7 +32,6 @@
       <section class="hero" aria-labelledby="page-title">
         <div class="eyebrow">MULTI-ENGINE TEXT TO SPEECH</div>
         <h1 id="page-title">多引擎文字转语音</h1>
-        <p>输入文字后选择引擎、音色和语速，生成可试听和下载的 WAV 或 MP3 音频。Kokoro 与 Kitten 在本地运行，Edge TTS 使用在线语音服务。</p>
       </section>
 
       <section class="workspace" aria-label="语音合成工作台">
@@ -49,11 +48,14 @@
           <textarea id="text" name="text" maxlength="{{.MaxTextRunes}}" rows="8"
             placeholder="在这里输入或粘贴文字……&#10;&#10;例如：欢迎使用 VoxLab。今天，我们把文字变成声音。"></textarea>
 
-          <div class="sample-row" aria-label="示例文本">
-            <span>试试：</span>
-            <button type="button" class="sample-chip" data-sample="zh">中文叙事</button>
-            <button type="button" class="sample-chip" data-sample="en">English</button>
-            <button type="button" class="sample-chip" data-sample="quote">短句</button>
+          <div class="input-meta">
+            <div class="sample-row" aria-label="示例文本">
+              <span>试试：</span>
+              <button type="button" class="sample-chip" data-sample="zh">中文叙事</button>
+              <button type="button" class="sample-chip" data-sample="en">English</button>
+              <button type="button" class="sample-chip" data-sample="quote">短句</button>
+            </div>
+            <span id="language-detection" class="detection-badge" aria-live="polite"></span>
           </div>
 
           <div class="section-heading engine-heading">
@@ -87,13 +89,30 @@
           <div class="settings-grid">
             <div class="field">
               <div class="field-label-row">
-                <label for="voice">音色</label>
+                <label for="language">语言</label>
+              </div>
+              <div class="select-wrap">
+                <select id="language" name="language">
+                  {{range .DefaultLanguages}}
+                  <option value="{{.Code}}" {{if eq .Code $.DefaultLanguage}}selected{{end}}>
+                    {{.Name}} · {{.Count}}
+                  </option>
+                  {{end}}
+                </select>
+                <span class="select-arrow" aria-hidden="true"></span>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="field-label-row">
+                <label for="voice">角色</label>
                 <span id="voice-locale"></span>
               </div>
               <div class="select-wrap">
                 <select id="voice" name="voice">
                   {{range .DefaultVoices}}
-                  <option value="{{.ID}}" data-locale="{{.Locale}}" data-gender="{{.Gender}}" data-language="{{.Language}}">
+                  <option value="{{.ID}}" data-locale="{{.Locale}}" data-gender="{{.Gender}}"
+                    data-language="{{.Language}}" data-language-code="{{.LanguageCode}}">
                     {{.Name}}{{if .Locale}} · {{.Locale}}{{end}}{{if .Gender}} · {{.Gender}}{{end}}
                   </option>
                   {{end}}
@@ -113,6 +132,7 @@
             </div>
           </div>
 
+          <div id="language-warning" class="notice warning" role="status" hidden></div>
           <div id="error-box" class="notice error" role="alert" hidden></div>
 
           <button id="synthesize" class="primary-button" type="submit">

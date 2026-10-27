@@ -153,10 +153,11 @@ func (e *KittenEngine) buildVoices() []Voice {
 		}
 		seen[internal] = true
 		voices = append(voices, Voice{
-			ID:       e.internalNames[internal],
-			Name:     e.internalNames[internal],
-			Locale:   "en-US",
-			Language: "English",
+			ID:           e.internalNames[internal],
+			Name:         e.internalNames[internal],
+			Locale:       "en-US",
+			Language:     "English",
+			LanguageCode: "en",
 		})
 	}
 	keys := make([]string, 0, len(e.styles))
@@ -169,10 +170,11 @@ func (e *KittenEngine) buildVoices() []Voice {
 			continue
 		}
 		voices = append(voices, Voice{
-			ID:       internal,
-			Name:     internal,
-			Locale:   "en-US",
-			Language: "English",
+			ID:           internal,
+			Name:         internal,
+			Locale:       "en-US",
+			Language:     "English",
+			LanguageCode: "en",
 		})
 	}
 	sortVoices(voices)

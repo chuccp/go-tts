@@ -25,10 +25,14 @@ func TestLocalEngineIntegration(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		espeak = filepath.Join(root, "runtime", "espeak-ng", "espeak-ng")
 	}
+	kokoroModel := filepath.Join(root, "models", "kokoro", "kokoro-v0_19-int8.onnx")
+	if _, err := os.Stat(kokoroModel); err != nil {
+		kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx")
+	}
 	paths := []string{
 		runtimeLib,
 		espeak,
-		filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx"),
+		kokoroModel,
 		filepath.Join(root, "models", "kokoro", "voices-v1.0.bin"),
 		filepath.Join(root, "models", "kitten", "kitten_tts_nano_v0_8.onnx"),
 		filepath.Join(root, "models", "kitten", "voices.npz"),
@@ -40,7 +44,7 @@ func TestLocalEngineIntegration(t *testing.T) {
 	}
 
 	kokoro := NewKokoroEngine(KokoroConfig{
-		ModelPath:  filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx"),
+		ModelPath:  kokoroModel,
 		VoicesPath: filepath.Join(root, "models", "kokoro", "voices-v1.0.bin"),
 		RuntimeLib: runtimeLib,
 		EspeakPath: espeak,

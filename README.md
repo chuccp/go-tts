@@ -6,7 +6,8 @@
 - **Kokoro**：本地 ONNX、`espeak-ng` 音素化、多语言音色、语速控制。
 - **Kitten TTS**：本地轻量 ONNX、8 个内置音色、语速控制。
 - **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言。
-- 同一个页面内切换引擎、选择音色、调节语速、试听和下载音频。
+- 自动检测输入语言，按“语言 → 角色”级联选择音色，并提示语言不匹配。
+- 同一个页面内切换引擎、调节语速、试听和下载音频。
 - 本地模型缺失或初始化失败时，仅禁用对应引擎，不影响 Edge TTS 使用。
 
 Kokoro 的 Go 接入方案参考了
@@ -40,6 +41,7 @@ Windows 可下载
 models/
   kokoro/
     kokoro-v0_19.onnx
+    kokoro-v0_19-int8.onnx
     voices-v1.0.bin
 ```
 
@@ -48,6 +50,17 @@ models/
 
 虽然音色文件扩展名是 `.bin`，实际是包含多个 `.npy` 的 NPZ。应用也支持包含多个
 `.npz`、`.npy` 或 raw float32 `.bin` 文件的音色目录。
+
+默认配置使用约 88 MB 的 INT8 模型。首次使用可执行一次性量化：
+
+```powershell
+python -m pip install onnx onnxruntime
+python scripts/quantize-kokoro.py `
+  models/kokoro/kokoro-v0_19.onnx `
+  models/kokoro/kokoro-v0_19-int8.onnx
+```
+
+实测 INT8 模型启动工作集约 302 MB，原 FP32 模型约 517 MB。
 
 ### Kitten TTS
 
@@ -95,7 +108,7 @@ tts:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
   kokoro:
-    model: models/kokoro/kokoro-v0_19.onnx
+    model: models/kokoro/kokoro-v0_19-int8.onnx
     voices: models/kokoro/voices-v1.0.bin
   kitten:
     model: models/kitten/kitten_tts_nano_v0_8.onnx

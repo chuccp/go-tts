@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -161,11 +162,12 @@ func (e *EdgeEngine) fetchVoices(ctx context.Context) ([]Voice, error) {
 		}
 		name := friendlyEdgeVoiceName(item.ShortName)
 		voices = append(voices, Voice{
-			ID:       item.ShortName,
-			Name:     name,
-			Locale:   item.Locale,
-			Gender:   item.Gender,
-			Language: edgeLanguageName(item.Locale),
+			ID:           item.ShortName,
+			Name:         name,
+			Locale:       item.Locale,
+			Gender:       item.Gender,
+			Language:     edgeLanguageName(item.Locale),
+			LanguageCode: edgeLanguageCode(item.Locale),
 		})
 	}
 	if len(voices) == 0 {
@@ -262,6 +264,12 @@ func (e *EdgeEngine) synthesizeChunk(ctx context.Context, text, voice string, sp
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return nil, ctxErr
+			}
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+					return nil, context.DeadlineExceeded
+				}
 			}
 			return nil, fmt.Errorf("read Edge stream: %w", err)
 		}
@@ -435,11 +443,12 @@ func fallbackEdgeVoices() []Voice {
 	voices := make([]Voice, 0, len(items))
 	for _, item := range items {
 		voices = append(voices, Voice{
-			ID:       item[0],
-			Name:     item[1],
-			Locale:   item[2],
-			Gender:   item[3],
-			Language: edgeLanguageName(item[2]),
+			ID:           item[0],
+			Name:         item[1],
+			Locale:       item[2],
+			Gender:       item[3],
+			Language:     edgeLanguageName(item[2]),
+			LanguageCode: edgeLanguageCode(item[2]),
 		})
 	}
 	return voices
@@ -464,6 +473,13 @@ func edgeLanguageName(locale string) string {
 		return name
 	}
 	return strings.ToUpper(language)
+}
+
+func edgeLanguageCode(locale string) string {
+	if language, _, ok := strings.Cut(locale, "-"); ok {
+		return strings.ToLower(language)
+	}
+	return strings.ToLower(locale)
 }
 
 func edgeLocalePriority(locale string) int {

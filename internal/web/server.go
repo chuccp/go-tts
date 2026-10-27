@@ -10,10 +10,12 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cao/go-tts/internal/langdetect"
 	"github.com/cao/go-tts/internal/tts"
 	"github.com/cao/go-tts/internal/ttssvc"
 	"github.com/chuccp/go-web-frame/core"
@@ -33,11 +35,19 @@ type App struct {
 }
 
 type pageData struct {
-	Engines        []tts.EngineStatus
-	DefaultEngine  string
-	DefaultVoices  []tts.Voice
-	MaxTextRunes   int
-	EngineDataJSON template.JS
+	Engines          []tts.EngineStatus
+	DefaultEngine    string
+	DefaultVoices    []tts.Voice
+	DefaultLanguage  string
+	DefaultLanguages []languageOption
+	MaxTextRunes     int
+	EngineDataJSON   template.JS
+}
+
+type languageOption struct {
+	Code  string
+	Name  string
+	Count int
 }
 
 type clientEngine struct {
@@ -73,6 +83,7 @@ func (a *App) Init(ctx *core.Context) error {
 	ctx.Handle(http.MethodGet, "/", a.home)
 	ctx.Handle(http.MethodHead, "/", a.home)
 	ctx.Any("/api/voices", a.voices)
+	ctx.Any("/api/detect-language", a.detectLanguage)
 	ctx.Any("/api/synthesize", a.synthesize)
 	ctx.Any("/healthz", a.health)
 	ctx.StaticFs("/static", a.static)
@@ -107,12 +118,23 @@ func (a *App) home(req *frameweb.Request) (any, error) {
 		defaultEngine = statuses[0].ID
 	}
 	var defaultVoices []tts.Voice
+	defaultLanguage := ""
 	for _, status := range statuses {
 		if status.ID == defaultEngine {
 			defaultVoices = prioritizeVoice(status.Voices, a.service.DefaultVoice(defaultEngine))
+			for _, voice := range defaultVoices {
+				if voice.ID == a.service.DefaultVoice(defaultEngine) {
+					defaultLanguage = voice.LanguageCode
+					break
+				}
+			}
+			if defaultLanguage == "" && len(defaultVoices) > 0 {
+				defaultLanguage = defaultVoices[0].LanguageCode
+			}
 			break
 		}
 	}
+	defaultRoles := voicesForLanguage(defaultVoices, defaultLanguage)
 	clientEngines := make([]clientEngine, 0, len(statuses))
 	for _, status := range statuses {
 		clientEngines = append(clientEngines, clientEngine{
@@ -132,11 +154,13 @@ func (a *App) home(req *frameweb.Request) (any, error) {
 		return nil, frameweb.NewInternalError().WithError(err)
 	}
 	data := pageData{
-		Engines:        statuses,
-		DefaultEngine:  defaultEngine,
-		DefaultVoices:  defaultVoices,
-		MaxTextRunes:   a.service.MaxTextRunes(),
-		EngineDataJSON: template.JS(engineJSON),
+		Engines:          statuses,
+		DefaultEngine:    defaultEngine,
+		DefaultVoices:    defaultRoles,
+		DefaultLanguage:  defaultLanguage,
+		DefaultLanguages: buildLanguageOptions(defaultVoices, defaultLanguage),
+		MaxTextRunes:     a.service.MaxTextRunes(),
+		EngineDataJSON:   template.JS(engineJSON),
 	}
 	var body bytes.Buffer
 	if err := a.templates.ExecuteTemplate(&body, "index.html", data); err != nil {
@@ -150,6 +174,24 @@ func (a *App) home(req *frameweb.Request) (any, error) {
 		return nil, nil
 	}
 	req.GinContext().Data(http.StatusOK, "text/html; charset=utf-8", body.Bytes())
+	return nil, nil
+}
+
+func (a *App) detectLanguage(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodPost {
+		return nil, methodNotAllowed(req, http.MethodPost)
+	}
+	req.Request().Body = http.MaxBytesReader(req.GinContext().Writer, req.Request().Body, 64<<10)
+	if err := req.Request().ParseForm(); err != nil {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "invalid form data"})
+		return nil, nil
+	}
+	text := strings.TrimSpace(req.GetFormParam("text"))
+	if text == "" {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "text is required"})
+		return nil, nil
+	}
+	writeJSON(req, http.StatusOK, langdetect.Detect(text))
 	return nil, nil
 }
 
@@ -326,4 +368,54 @@ func prioritizeVoice(voices []tts.Voice, preferred string) []tts.Voice {
 		}
 	}
 	return result
+}
+
+func voicesForLanguage(voices []tts.Voice, languageCode string) []tts.Voice {
+	if languageCode == "" {
+		return voices
+	}
+	result := make([]tts.Voice, 0, len(voices))
+	for _, voice := range voices {
+		if voice.LanguageCode == languageCode {
+			result = append(result, voice)
+		}
+	}
+	return result
+}
+
+func buildLanguageOptions(voices []tts.Voice, preferred string) []languageOption {
+	counts := make(map[string]int)
+	names := make(map[string]string)
+	for _, voice := range voices {
+		if voice.LanguageCode == "" {
+			continue
+		}
+		counts[voice.LanguageCode]++
+		if names[voice.LanguageCode] == "" {
+			names[voice.LanguageCode] = voice.Language
+		}
+	}
+	options := make([]languageOption, 0, len(counts))
+	for code, count := range counts {
+		options = append(options, languageOption{Code: code, Name: names[code], Count: count})
+	}
+	priority := map[string]int{"zh": 0, "en": 1, "ja": 2, "ko": 3}
+	sort.Slice(options, func(i, j int) bool {
+		if options[i].Code == preferred {
+			return true
+		}
+		if options[j].Code == preferred {
+			return false
+		}
+		pi, oki := priority[options[i].Code]
+		pj, okj := priority[options[j].Code]
+		if oki && okj && pi != pj {
+			return pi < pj
+		}
+		if oki != okj {
+			return oki
+		}
+		return options[i].Name < options[j].Name
+	})
+	return options
 }

@@ -149,8 +149,8 @@ input[type="range"] {
 }
 
 .hero {
-  max-width: 760px;
-  padding: 28px 0 22px;
+  max-width: 600px;
+  padding: 18px 0 14px;
 }
 
 .eyebrow,
@@ -162,20 +162,12 @@ input[type="range"] {
 }
 
 .hero h1 {
-  margin: 8px 0 10px;
-  font-size: clamp(28px, 3.8vw, 38px);
+  margin: 5px 0 0;
+  font-size: clamp(22px, 2.6vw, 28px);
   font-weight: 650;
   line-height: 1.15;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
-}
-
-.hero p {
-  max-width: 720px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.65;
 }
 
 .workspace {
@@ -277,6 +269,24 @@ textarea:focus {
   margin-top: 8px;
   color: var(--dim);
   font-size: 11px;
+}
+
+.input-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.input-meta .sample-row {
+  min-width: 0;
+}
+
+.detection-badge {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .sample-chip {
@@ -430,8 +440,8 @@ textarea:focus {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.2fr) minmax(110px, 0.85fr);
+  gap: 12px;
   margin-top: 18px;
 }
 
@@ -559,6 +569,12 @@ input[type="range"]::-moz-range-thumb {
   color: #ffd4cc;
   border: 1px solid rgba(255, 139, 122, 0.24);
   background: rgba(255, 139, 122, 0.08);
+}
+
+.notice.warning {
+  color: #f5d7a8;
+  border: 1px solid rgba(226, 171, 120, 0.28);
+  background: rgba(226, 171, 120, 0.08);
 }
 
 .primary-button {
@@ -845,7 +861,7 @@ audio {
   }
 
   .topbar {
-    min-height: 54px;
+    display: none;
   }
 
   .topbar-meta {
@@ -853,7 +869,7 @@ audio {
   }
 
   .hero {
-    padding: 14px 2px 12px;
+    padding: 10px 2px 8px;
   }
 
   .eyebrow {
@@ -862,14 +878,9 @@ audio {
   }
 
   .hero h1 {
-    margin: 5px 0 6px;
-    font-size: 24px;
+    margin: 4px 0 0;
+    font-size: 21px;
     letter-spacing: -0.02em;
-  }
-
-  .hero p {
-    font-size: 11px;
-    line-height: 1.5;
   }
 
   .workspace {
@@ -907,6 +918,16 @@ audio {
     overflow-x: auto;
     flex-wrap: nowrap;
     scrollbar-width: none;
+  }
+
+  .input-meta {
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .detection-badge {
+    padding-top: 4px;
+    font-size: 8px;
   }
 
   .sample-chip {
@@ -963,8 +984,8 @@ audio {
   }
 
   .settings-grid {
-    grid-template-columns: minmax(0, 1.2fr) minmax(105px, 0.8fr);
-    gap: 8px;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.2fr) minmax(95px, 0.85fr);
+    gap: 6px;
     margin-top: 12px;
   }
 
@@ -1022,6 +1043,7 @@ audio {
   .result-panel {
     display: flex;
     min-height: 0;
+    margin-top: 8px;
     border-radius: 12px;
     box-shadow: none;
   }
