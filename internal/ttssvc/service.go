@@ -51,7 +51,8 @@ func (s *Service) Init(ctx *core.Context) error {
 		DefaultVoice: stringSetting(cfg, "tts.edge.default_voice", "zh-CN-XiaoxiaoNeural"),
 		ProxyURL:     cfg.GetString("tts.edge.proxy"),
 	})
-	engines := []tts.Engine{kitten}
+	engines := []tts.Engine{edge}
+	engines = append(engines, kitten)
 	if cfg.HasKey("tts.kokoro.model") || cfg.HasKey("tts.kokoro.voices") {
 		engines = append(engines, tts.NewKokoroEngine(tts.KokoroConfig{
 			ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v1.0-quantized.onnx"),
@@ -67,7 +68,6 @@ func (s *Service) Init(ctx *core.Context) error {
 			RuntimeLib: runtimeLib,
 		}))
 	}
-	engines = append(engines, edge)
 	s.service = tts.NewService(engines...)
 	s.service.SetMaxTextRunes(maxChars)
 	return nil

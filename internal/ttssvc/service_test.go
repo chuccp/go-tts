@@ -40,14 +40,14 @@ func TestServiceInitFromFrameworkConfig(t *testing.T) {
 	if len(statuses) != 5 {
 		t.Fatalf("engine count = %d", len(statuses))
 	}
-	wantOrder := []string{"kitten", "kokoro", "melo", "piper-ja", "edge"}
+	wantOrder := []string{"edge", "kitten", "kokoro", "melo", "piper-ja"}
 	for i, want := range wantOrder {
 		if statuses[i].ID != want {
 			t.Fatalf("engine order[%d] = %q, want %q", i, statuses[i].ID, want)
 		}
 	}
-	if !statuses[4].Available {
-		t.Fatalf("Edge should be available: %+v", statuses[4])
+	if !statuses[0].Available {
+		t.Fatalf("Edge should be available: %+v", statuses[0])
 	}
 }
 
@@ -65,7 +65,7 @@ func TestOptionalEnginesAreDisabledWhenNotConfigured(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = service.Close() })
 	statuses := service.Statuses(context.Background())
-	wantOrder := []string{"kitten", "melo", "edge"}
+	wantOrder := []string{"edge", "kitten", "melo"}
 	if len(statuses) != len(wantOrder) {
 		t.Fatalf("engine count = %d, want %d", len(statuses), len(wantOrder))
 	}

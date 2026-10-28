@@ -223,14 +223,14 @@ func TestUnconfiguredOptionalEnginesAreHidden(t *testing.T) {
 	}
 }
 
-func TestHomeDefaultsToKittenAndOrdersEdgeLast(t *testing.T) {
+func TestHomeDefaultsToKittenAndOrdersEdgeFirst(t *testing.T) {
 	t.Parallel()
 	engines := []*fakeEngine{
 		{id: "kokoro", available: true, defaultVoice: "k", voices: []tts.Voice{{ID: "k", Name: "Kokoro"}}},
 		{id: "kitten", available: true, defaultVoice: "n", voices: []tts.Voice{{ID: "n", Name: "Kitten"}}},
 		{id: "edge", available: true, defaultVoice: "e", voices: []tts.Voice{{ID: "e", Name: "Edge"}}},
 	}
-	handler := newTestHandler(t, tts.NewService(engines[0], engines[1], engines[2]))
+	handler := newTestHandler(t, tts.NewService(engines[2], engines[0], engines[1]))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
 	body := response.Body.String()
@@ -239,7 +239,7 @@ func TestHomeDefaultsToKittenAndOrdersEdgeLast(t *testing.T) {
 	kittenIndex := strings.Index(body, `data-engine="kitten"`)
 	edgeIndex := strings.Index(body, `data-engine="edge"`)
 	if kokoroIndex < 0 || kittenIndex < 0 || edgeIndex < 0 ||
-		!(kokoroIndex < kittenIndex && kittenIndex < edgeIndex) {
+		!(edgeIndex < kokoroIndex && kokoroIndex < kittenIndex) {
 		t.Fatalf("unexpected engine order: kokoro=%d kitten=%d edge=%d", kokoroIndex, kittenIndex, edgeIndex)
 	}
 	cardStart := kittenIndex

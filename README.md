@@ -5,7 +5,7 @@
 
 - **Kitten TTS**：本地轻量 ONNX、8 个英文内置音色、语速控制。
 - **Melo TTS**：本地中文专用 ONNX，使用词典处理多音字和韵律。
-- **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言。
+- **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言，默认排在引擎列表首位。
 - **Kokoro**：代码完整保留；仅在 `application.yml` 配置 Kokoro 模型路径后启用。
 - **Piper 日本語**：代码完整保留；仅在 `application.yml` 配置日语模型路径后启用。
 - 界面支持中文和 English 切换，并记住上次选择。
