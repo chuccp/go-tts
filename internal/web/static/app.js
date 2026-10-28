@@ -65,7 +65,7 @@
   let pendingCaptchaBody = null;
 
   const samples = {
-    zh: "欢迎使用 VoxLab。这里汇聚了 Kitten、Melo 与 Edge TTS 语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
+    zh: "欢迎使用 VoxLab。这里汇聚了本地与在线语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
     en: "Welcome to VoxLab. Several speech engines, one simple workspace. Choose a voice, set your pace, and bring every sentence to life.",
     ja: "VoxLabへようこそ。聞きたい文章を入力し、声と言語、話す速さを選んでください。文章を自然な音声に変えます。",
     quote: "声音不只是信息的载体，也是情绪的形状。"
