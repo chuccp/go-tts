@@ -11,7 +11,7 @@ tts:
   captcha:
     enabled: true
     limit: 10
-    window: 10m
+    period: 600
   onnx:
     runtime_lib: ""
   espeak:

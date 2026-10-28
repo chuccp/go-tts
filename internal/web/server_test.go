@@ -204,7 +204,7 @@ func TestSynthesizeRequiresClickCaptchaAfterLimit(t *testing.T) {
 	}), map[string]any{
 		"tts.captcha.enabled": true,
 		"tts.captcha.limit":   10,
-		"tts.captcha.window":  "10m",
+		"tts.captcha.period":  600,
 	})
 	form := url.Values{
 		"engine": {"fake"},

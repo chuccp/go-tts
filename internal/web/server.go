@@ -90,13 +90,11 @@ func (a *App) Init(ctx *core.Context) error {
 	captchaConfig := clickguard.DefaultConfig()
 	captchaConfig.Enabled = cfg.GetBoolOrDefault("tts.captcha.enabled", captchaConfig.Enabled)
 	captchaConfig.Limit = cfg.GetIntOrDefault("tts.captcha.limit", captchaConfig.Limit)
-	if value := strings.TrimSpace(cfg.GetString("tts.captcha.window")); value != "" {
-		window, err := time.ParseDuration(value)
-		if err != nil || window <= 0 {
-			return fmt.Errorf("tts.captcha.window must be a positive duration: %q", value)
-		}
-		captchaConfig.Window = window
+	periodSeconds := cfg.GetIntOrDefault("tts.captcha.period", int(captchaConfig.Window/time.Second))
+	if periodSeconds <= 0 {
+		return fmt.Errorf("tts.captcha.period must be a positive number of seconds")
 	}
+	captchaConfig.Window = time.Duration(periodSeconds) * time.Second
 	captcha, err := clickguard.New(captchaConfig)
 	if err != nil {
 		return err

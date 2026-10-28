@@ -27,7 +27,7 @@ func TestDefaultApplicationYAML(t *testing.T) {
 	if got := cfg.GetInt("tts.captcha.limit"); got != 10 {
 		t.Fatalf("tts.captcha.limit = %d, want 10", got)
 	}
-	if got := cfg.GetString("tts.captcha.window"); got != "10m" {
-		t.Fatalf("tts.captcha.window = %q, want 10m", got)
+	if got := cfg.GetInt("tts.captcha.period"); got != 600 {
+		t.Fatalf("tts.captcha.period = %d, want 600", got)
 	}
 }
