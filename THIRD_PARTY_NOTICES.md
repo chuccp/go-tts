@@ -4,6 +4,12 @@ This project references protocol and implementation details from:
 
 - [rany2/edge-tts](https://github.com/rany2/edge-tts), LGPL-3.0.
 - [KittenML/KittenTTS](https://github.com/KittenML/KittenTTS), Apache-2.0.
+- [myshell-ai/MeloTTS](https://github.com/myshell-ai/MeloTTS), MIT License.
+- [rhasspy/piper](https://github.com/rhasspy/piper), MIT License.
+- [ayutaz/piper-plus](https://github.com/ayutaz/piper-plus), MIT License.
+- [Piper Plus つくよみちゃん](https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan), separate voice/corpus terms.
+- [ikawaha/kagome](https://github.com/ikawaha/kagome), Apache-2.0.
+- [ikawaha/kagome-dict](https://github.com/ikawaha/kagome-dict), Apache-2.0.
 - [chuccp/go-web-frame](https://github.com/chuccp/go-web-frame), Apache-2.0.
 - [yalue/onnxruntime_go](https://github.com/yalue/onnxruntime_go), MIT License.
 - [gorilla/websocket](https://github.com/gorilla/websocket), BSD-3-Clause.

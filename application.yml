@@ -13,13 +13,18 @@ tts:
   edge:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
-  kokoro:
-    model: models/kokoro/kokoro-v1.0-quantized.onnx
-    voices: models/kokoro/voices-v1.0.bin
   kitten:
     model: models/kitten/kitten_tts_nano_v0_8.onnx
     voices: models/kitten/voices.npz
     config: models/kitten/config.json
+  melo:
+    model: models/melo-zh/model.onnx
+    lexicon: models/melo-zh/lexicon.txt
+    tokens: models/melo-zh/tokens.txt
+  piper:
+    japanese:
+      model: models/piper-ja/model.onnx
+      config: models/piper-ja/model.onnx.json
 
 captcha:
   enabled: true

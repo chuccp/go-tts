@@ -148,7 +148,30 @@ func TestHomePrioritizesEngineDefaultVoice(t *testing.T) {
 	}
 }
 
-func TestHomeDefaultsToKokoroAndOrdersEdgeLast(t *testing.T) {
+func TestHomeGroupsJapaneseRolesUnderJapaneseLanguage(t *testing.T) {
+	t.Parallel()
+	engine := &fakeEngine{
+		available:    true,
+		defaultVoice: "ja-voice",
+		voices: []tts.Voice{
+			{ID: "zh-voice", Name: "中文语音", Locale: "zh-CN", Language: "中文", LanguageCode: "zh"},
+			{ID: "ja-voice", Name: "つくよみ", Locale: "ja-JP", Language: "日本語", LanguageCode: "ja"},
+		},
+	}
+	handler := newTestHandler(t, tts.NewService(engine))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
+	body := response.Body.String()
+	if !strings.Contains(body, `<option value="ja" selected>`) ||
+		!strings.Contains(body, `value="ja-voice"`) {
+		t.Fatalf("Japanese language or role was not selected: %s", body)
+	}
+	if strings.Contains(body, `value="zh-voice"`) {
+		t.Fatal("Chinese role should not be rendered under the default Japanese language")
+	}
+}
+
+func TestHomeDefaultsToKittenAndOrdersEdgeLast(t *testing.T) {
 	t.Parallel()
 	engines := []*fakeEngine{
 		{id: "kokoro", available: true, defaultVoice: "k", voices: []tts.Voice{{ID: "k", Name: "Kokoro"}}},
@@ -167,10 +190,10 @@ func TestHomeDefaultsToKokoroAndOrdersEdgeLast(t *testing.T) {
 		!(kokoroIndex < kittenIndex && kittenIndex < edgeIndex) {
 		t.Fatalf("unexpected engine order: kokoro=%d kitten=%d edge=%d", kokoroIndex, kittenIndex, edgeIndex)
 	}
-	cardStart := kokoroIndex
+	cardStart := kittenIndex
 	cardEnd := strings.Index(body[cardStart:], ">")
 	if cardEnd < 0 || !strings.Contains(body[cardStart:cardStart+cardEnd+1], `aria-checked="true"`) {
-		t.Fatal("Kokoro should be selected by default")
+		t.Fatal("Kitten should be selected by default")
 	}
 }
 
@@ -349,6 +372,29 @@ func TestDetectLanguageEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.Code != "zh" || result.Name != "中文" {
+		t.Fatalf("unexpected detection: %+v", result)
+	}
+}
+
+func TestDetectLanguageEndpointRecognizesJapanese(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, tts.NewService(&fakeEngine{available: true}))
+	form := url.Values{"text": {"こんにちは、音声を作成します。"}}
+	request := newTestRequest(http.MethodPost, "/api/detect-language", form.Encode())
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var result struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Code != "ja" || result.Name != "日本語" {
 		t.Fatalf("unexpected detection: %+v", result)
 	}
 }

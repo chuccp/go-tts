@@ -35,22 +35,37 @@ func (s *Service) Init(ctx *core.Context) error {
 		maxChars = 5000
 	}
 	runtimeLib := cfg.GetString("tts.onnx.runtime_lib")
-	kokoro := tts.NewKokoroEngine(tts.KokoroConfig{
-		ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v1.0-quantized.onnx"),
-		VoicesPath: stringSetting(cfg, "tts.kokoro.voices", "models/kokoro/voices-v1.0.bin"),
-		RuntimeLib: runtimeLib,
-	})
 	kitten := tts.NewKittenEngine(tts.KittenConfig{
 		ModelPath:  stringSetting(cfg, "tts.kitten.model", "models/kitten/kitten_tts_nano_v0_8.onnx"),
 		VoicesPath: stringSetting(cfg, "tts.kitten.voices", "models/kitten/voices.npz"),
 		ConfigPath: stringSetting(cfg, "tts.kitten.config", "models/kitten/config.json"),
 		RuntimeLib: runtimeLib,
 	})
+	melo := tts.NewMeloEngine(tts.MeloConfig{
+		ModelPath:   stringSetting(cfg, "tts.melo.model", "models/melo-zh/model.onnx"),
+		LexiconPath: stringSetting(cfg, "tts.melo.lexicon", "models/melo-zh/lexicon.txt"),
+		TokensPath:  stringSetting(cfg, "tts.melo.tokens", "models/melo-zh/tokens.txt"),
+		RuntimeLib:  runtimeLib,
+	})
+	piperJapanese := tts.NewPiperJapaneseEngine(tts.PiperJapaneseConfig{
+		ModelPath:  stringSetting(cfg, "tts.piper.japanese.model", "models/piper-ja/model.onnx"),
+		ConfigPath: stringSetting(cfg, "tts.piper.japanese.config", "models/piper-ja/model.onnx.json"),
+		RuntimeLib: runtimeLib,
+	})
 	edge := tts.NewEdgeEngine(tts.EdgeConfig{
 		DefaultVoice: stringSetting(cfg, "tts.edge.default_voice", "zh-CN-XiaoxiaoNeural"),
 		ProxyURL:     cfg.GetString("tts.edge.proxy"),
 	})
-	s.service = tts.NewService(kokoro, kitten, edge)
+	engines := []tts.Engine{kitten}
+	if cfg.HasKey("tts.kokoro.model") || cfg.HasKey("tts.kokoro.voices") {
+		engines = append(engines, tts.NewKokoroEngine(tts.KokoroConfig{
+			ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v1.0-quantized.onnx"),
+			VoicesPath: stringSetting(cfg, "tts.kokoro.voices", "models/kokoro/voices-v1.0.bin"),
+			RuntimeLib: runtimeLib,
+		}))
+	}
+	engines = append(engines, melo, piperJapanese, edge)
+	s.service = tts.NewService(engines...)
 	s.service.SetMaxTextRunes(maxChars)
 	return nil
 }

@@ -119,7 +119,7 @@ func TestLocalEngineIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			validateNonSilentWAV(t, audio.Data)
+			validateNonSilentWAV(t, audio.Data, 24000)
 			if output := os.Getenv("TTS_AUDIO_OUTPUT"); output != "" && test.name == "kokoro-chinese" {
 				if err := os.WriteFile(output, audio.Data, 0o644); err != nil {
 					t.Fatal(err)
@@ -134,7 +134,59 @@ func TestLocalEngineIntegration(t *testing.T) {
 	}
 }
 
-func validateNonSilentWAV(t *testing.T, data []byte) {
+func TestPiperJapaneseIntegration(t *testing.T) {
+	if os.Getenv("TTS_INTEGRATION") != "1" {
+		t.Skip("set TTS_INTEGRATION=1 to run local ONNX engine tests")
+	}
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeLib := filepath.Join(root, "runtime", "onnxruntime.dll")
+	if runtime.GOOS != "windows" {
+		runtimeLib = filepath.Join(root, "runtime", "libonnxruntime.so")
+	}
+	modelPath := filepath.Join(root, "models", "piper-ja", "model.onnx")
+	configPath := filepath.Join(root, "models", "piper-ja", "model.onnx.json")
+	for _, path := range []string{runtimeLib, modelPath, configPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Skipf("Piper Japanese integration asset is missing: %s", path)
+		}
+	}
+
+	engine := NewPiperJapaneseEngine(PiperJapaneseConfig{
+		ModelPath:  modelPath,
+		ConfigPath: configPath,
+		RuntimeLib: runtimeLib,
+	})
+	if err := engine.Available(); err != nil {
+		t.Fatal(err)
+	}
+	voices, err := engine.Voices(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(voices) == 0 {
+		t.Fatal("Piper Japanese returned no voices")
+	}
+	audio, err := engine.Synthesize(
+		context.Background(),
+		"こんにちは、世界。今日は良い天気ですね。",
+		engine.DefaultVoice(),
+		1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateNonSilentWAV(t, audio.Data, 22050)
+	if output := os.Getenv("TTS_JAPANESE_AUDIO_OUTPUT"); output != "" {
+		if err := os.WriteFile(output, audio.Data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func validateNonSilentWAV(t *testing.T, data []byte, sampleRate int) {
 	t.Helper()
 	if len(data) < 44 {
 		t.Fatalf("WAV is too short: %d bytes", len(data))
@@ -142,8 +194,8 @@ func validateNonSilentWAV(t *testing.T, data []byte) {
 	if string(data[0:4]) != "RIFF" || string(data[8:12]) != "WAVE" {
 		t.Fatal("invalid WAV header")
 	}
-	if got := binary.LittleEndian.Uint32(data[24:28]); got != 24000 {
-		t.Fatalf("sample rate = %d, want 24000", got)
+	if got := binary.LittleEndian.Uint32(data[24:28]); got != uint32(sampleRate) {
+		t.Fatalf("sample rate = %d, want %d", got, sampleRate)
 	}
 	dataSize := int(binary.LittleEndian.Uint32(data[40:44]))
 	if dataSize <= 0 || dataSize+44 > len(data) {

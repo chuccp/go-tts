@@ -3,9 +3,11 @@
 一个使用 Go + [`go-web-frame`](https://github.com/chuccp/go-web-frame) +
 `html/template` 实现的多引擎文字转语音 Web 应用，支持：
 
-- **Kokoro**：本地 ONNX、纯 Go 中文/英文 G2P、中文与英文音色、语速控制。
-- **Kitten TTS**：本地轻量 ONNX、8 个内置音色、语速控制。
+- **Kitten TTS**：本地轻量 ONNX、8 个英文内置音色、语速控制。
+- **Melo TTS**：本地中文专用 ONNX，使用词典处理多音字和韵律。
+- **Piper 日本語**：本地日语专用 ONNX，使用纯 Go 日文词典前端，不调用 espeak-ng。
 - **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言。
+- **Kokoro**：代码完整保留；仅在 `application.yml` 配置 Kokoro 模型路径后启用。
 - 界面支持中文和 English 切换，并记住上次选择。
 - 自动检测输入语言，按“语言 → 角色”级联选择音色，并提示语言不匹配。
 - 同一个页面内切换引擎、调节语速、试听和下载音频。
@@ -35,7 +37,7 @@ Windows 可下载
 
 ## 下载本地模型
 
-预构建的 Kokoro FP32、Kokoro INT8、音色文件以及 Kitten TTS 模型统一发布在
+预构建的 Kokoro FP32、Kokoro INT8、音色文件以及 Kitten TTS 模型发布在
 [coke123/go-tts-models](https://huggingface.co/coke123/go-tts-models/tree/main)。
 
 使用 Hugging Face CLI 一次下载默认 INT8 模型和 Kitten 所需文件：
@@ -98,6 +100,34 @@ models/
 下载 `kitten_tts_nano_v0_8.onnx`、`voices.npz` 和 `config.json`。也可换用同系列其他
 轻量 ONNX 模型，并在 `application.yml` 中指定文件路径。
 
+### Melo TTS（中文）
+
+中文专用模型使用 MeloTTS 的 VITS 架构，并通过内嵌词典处理中文分词和拼音韵律。
+默认路径如下：
+
+```text
+models/melo-zh/
+  model.onnx
+  lexicon.txt
+  tokens.txt
+```
+
+### Piper（日本語）
+
+日语引擎使用约 40 MB 的 Piper Plus つくよみちゃん VITS 模型。无需安装或启动
+espeak-ng；Kanji 读音由内嵌 Go IPADIC 词典取得。
+
+```text
+models/piper-ja/
+  model.onnx
+  model.onnx.json
+```
+
+可从
+[Piper Plus つくよみちゃん `zs-v1`](https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/tree/main/releases/zs-v1)
+下载 ONNX 与 JSON，并将 ONNX 重命名为 `model.onnx`。该音色遵循つくよみちゃん
+コーパス使用条款；使用或再分发前请确认其许可和内容限制。
+
 ## 启动
 
 ```powershell
@@ -134,6 +164,14 @@ tts:
     model: models/kitten/kitten_tts_nano_v0_8.onnx
     voices: models/kitten/voices.npz
     config: models/kitten/config.json
+  melo:
+    model: models/melo-zh/model.onnx
+    lexicon: models/melo-zh/lexicon.txt
+    tokens: models/melo-zh/tokens.txt
+  piper:
+    japanese:
+      model: models/piper-ja/model.onnx
+      config: models/piper-ja/model.onnx.json
 
 captcha:
   enabled: true
@@ -141,8 +179,8 @@ captcha:
   period: 600
 ```
 
-Kokoro 与 Kitten 不再启动任何外部音素化程序。中文使用内嵌 pypinyin 词组词典和
-Misaki 拼音到 IPA 映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型。
+Kitten、Melo 与 Piper 不再启动任何外部音素化程序。中文使用内嵌词典和拼音到 IPA
+映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型；日语使用内嵌 IPADIC 词典。
 
 ## 点击验证与限流
 

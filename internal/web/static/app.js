@@ -64,8 +64,9 @@
   let pendingCaptchaBody = null;
 
   const samples = {
-    zh: "欢迎使用 VoxLab。这里汇聚了 Kokoro、Kitten 与 Edge TTS 三套语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
-    en: "Welcome to VoxLab. Three speech engines, one simple workspace. Choose a voice, set your pace, and bring every sentence to life.",
+    zh: "欢迎使用 VoxLab。这里汇聚了 Kitten、Melo、Piper 与 Edge TTS 语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
+    en: "Welcome to VoxLab. Several speech engines, one simple workspace. Choose a voice, set your pace, and bring every sentence to life.",
+    ja: "VoxLabへようこそ。聞きたい文章を入力し、声と言語、話す速さを選んでください。文章を自然な音声に変えます。",
     quote: "声音不只是信息的载体，也是情绪的形状。"
   };
 
@@ -386,8 +387,18 @@
         name: languageLabel(result.code, result.name),
         confidence: result.confidence
       });
-      const engine = activeEngine();
+      let engine = activeEngine();
       const supported = activeVoices(engine).some((voice) => voiceLanguageCode(voice) === result.code);
+      if (!supported) {
+        const fallback = engines.find((candidate) =>
+          candidate.available &&
+          activeVoices(candidate).some((voice) => voiceLanguageCode(voice) === result.code)
+        );
+        if (fallback && fallback.id !== selectedEngine) {
+          selectEngine(fallback.id);
+          return;
+        }
+      }
       if (supported && languageSelect.value !== result.code) {
         populateLanguages(engine, result.code);
         populateVoices(engine, "");

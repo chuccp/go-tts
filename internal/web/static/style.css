@@ -445,7 +445,9 @@ textarea:focus {
 
 .engine-kokoro::before,
 .engine-kitten::before,
-.engine-edge::before {
+.engine-edge::before,
+.engine-melo::before,
+.engine-piper-ja::before {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -475,6 +477,21 @@ textarea:focus {
   border: 1px solid #91b7ff;
   border-radius: 50%;
   box-shadow: 0 0 8px rgba(145, 183, 255, 0.35);
+}
+
+.engine-melo::before {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--warm);
+  border-radius: 3px 8px 3px 8px;
+}
+
+.engine-piper-ja::before {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #ea8fbd;
+  border-radius: 50% 50% 50% 2px;
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .engine-copy strong,

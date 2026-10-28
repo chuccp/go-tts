@@ -119,7 +119,7 @@ func (a *App) home(req *frameweb.Request) (any, error) {
 	ctx, cancel := context.WithTimeout(req.Ctx(), 3*time.Second)
 	defer cancel()
 	statuses := a.service.Statuses(ctx)
-	defaultEngine := "kokoro"
+	defaultEngine := "kitten"
 	found := false
 	for _, status := range statuses {
 		if status.ID == defaultEngine && status.Available {

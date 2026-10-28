@@ -29,6 +29,8 @@ type KittenEngine struct {
 	cfg           KittenConfig
 	initErr       error
 	session       *ort.DynamicAdvancedSession
+	loadOnce      sync.Once
+	loadErr       error
 	mu            sync.Mutex
 	voices        []Voice
 	styles        map[string]floatTensor
@@ -100,18 +102,6 @@ func (e *KittenEngine) initialize() error {
 	}
 
 	e.voices = e.buildVoices()
-	if err := ensureONNXRuntime(FindONNXRuntime(e.cfg.RuntimeLib)); err != nil {
-		return err
-	}
-	session, err := newONNXSession(
-		e.cfg.ModelPath,
-		[]string{"input_ids", "style", "speed"},
-		[]string{"waveform", "duration"},
-	)
-	if err != nil {
-		return err
-	}
-	e.session = session
 	return nil
 }
 
@@ -177,6 +167,9 @@ func (e *KittenEngine) Synthesize(ctx context.Context, text, voiceID string, spe
 	if e.initErr != nil {
 		return Audio{}, e.initErr
 	}
+	if err := e.load(); err != nil {
+		return Audio{}, err
+	}
 	internal, tensor, ok := e.resolveVoice(voiceID)
 	if !ok {
 		return Audio{}, fmt.Errorf("unknown Kitten voice %q", voiceID)
@@ -212,6 +205,26 @@ func (e *KittenEngine) Synthesize(ctx context.Context, text, voiceID string, spe
 		Extension:  "wav",
 		SampleRate: 24000,
 	}, nil
+}
+
+func (e *KittenEngine) load() error {
+	e.loadOnce.Do(func() {
+		if err := ensureONNXRuntime(FindONNXRuntime(e.cfg.RuntimeLib)); err != nil {
+			e.loadErr = err
+			return
+		}
+		session, err := newONNXSession(
+			e.cfg.ModelPath,
+			[]string{"input_ids", "style", "speed"},
+			[]string{"waveform", "duration"},
+		)
+		if err != nil {
+			e.loadErr = err
+			return
+		}
+		e.session = session
+	})
+	return e.loadErr
 }
 
 func (e *KittenEngine) synthesizeChunk(

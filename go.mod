@@ -6,6 +6,8 @@ require (
 	github.com/androiddrew/go-g2p v0.2.0
 	github.com/chuccp/go-web-frame v1.0.19
 	github.com/gorilla/websocket v1.5.3
+	github.com/ikawaha/kagome-dict/ipa v1.2.6
+	github.com/ikawaha/kagome/v2 v2.11.0
 	github.com/yalue/onnxruntime_go v1.30.0
 	go.uber.org/zap v1.28.0
 )
@@ -34,6 +36,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/ikawaha/kagome-dict v1.1.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.11.0 // indirect
