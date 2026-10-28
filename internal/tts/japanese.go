@@ -1,7 +1,12 @@
 package tts
 
 import (
+	"bufio"
+	"bytes"
+	"compress/gzip"
+	_ "embed"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,10 +18,14 @@ import (
 )
 
 var (
-	japaneseTokenizerOnce sync.Once
-	japaneseTokenizer     *tokenizer.Tokenizer
-	japaneseTokenizerErr  error
+	japaneseTokenizerOnce  sync.Once
+	japaneseTokenizer      *tokenizer.Tokenizer
+	japanesePronunciations map[int32]string
+	japaneseTokenizerErr   error
 )
+
+//go:embed data/ipa_pronunciations.tsv.gz
+var japanesePronunciationData []byte
 
 // japanesePhonemes converts Japanese text into the phoneme inventory used by
 // the local Piper Japanese model. Readings come from the embedded IPADIC
@@ -27,7 +36,10 @@ func japanesePhonemes(text string) ([]string, error) {
 		return nil, ErrEmptyText
 	}
 	japaneseTokenizerOnce.Do(func() {
-		japaneseTokenizer, japaneseTokenizerErr = tokenizer.New(ipa.Dict())
+		japaneseTokenizer, japaneseTokenizerErr = tokenizer.New(ipa.DictShrink())
+		if japaneseTokenizerErr == nil {
+			japanesePronunciations, japaneseTokenizerErr = loadJapanesePronunciations(japanesePronunciationData)
+		}
 	})
 	if japaneseTokenizerErr != nil {
 		return nil, japaneseTokenizerErr
@@ -43,7 +55,14 @@ func japanesePhonemes(text string) ([]string, error) {
 			phonemes = append(phonemes, value)
 			continue
 		}
-		reading, ok := token.Pronunciation()
+		var reading string
+		var ok bool
+		if token.Class == tokenizer.KNOWN {
+			reading, ok = japanesePronunciations[int32(token.ID)]
+		}
+		if !ok {
+			reading, ok = token.Pronunciation()
+		}
 		if !ok || strings.TrimSpace(reading) == "" {
 			reading, ok = token.Reading()
 		}
@@ -66,6 +85,35 @@ func japanesePhonemes(text string) ([]string, error) {
 		return nil, errors.New("Japanese text frontend produced no phonemes")
 	}
 	return phonemes, nil
+}
+
+func loadJapanesePronunciations(compressed []byte) (map[int32]string, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("open Japanese pronunciation data: %w", err)
+	}
+	defer reader.Close()
+	result := make(map[int32]string, 400000)
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64<<10), 1<<20)
+	for scanner.Scan() {
+		idText, pronunciation, ok := strings.Cut(scanner.Text(), "\t")
+		if !ok || pronunciation == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(idText, 10, 32)
+		if err != nil {
+			continue
+		}
+		result[int32(id)] = pronunciation
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read Japanese pronunciation data: %w", err)
+	}
+	if len(result) == 0 {
+		return nil, errors.New("Japanese pronunciation data is empty")
+	}
+	return result, nil
 }
 
 func normalizeJapaneseText(text string) string {
