@@ -186,6 +186,43 @@ func TestHomeRendersLanguageMismatchAsToast(t *testing.T) {
 	}
 }
 
+func TestConfiguredOptionalEnginesAppearInFrontend(t *testing.T) {
+	t.Parallel()
+	handler := newConfigDrivenTestHandler(t, map[string]any{
+		"tts.kokoro.model":          "missing/kokoro.onnx",
+		"tts.kokoro.voices":         "missing/kokoro.npz",
+		"tts.piper.japanese.model":  "missing/ja.onnx",
+		"tts.piper.japanese.config": "missing/ja.onnx.json",
+	})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, engineID := range []string{"kokoro", "piper-ja"} {
+		if !strings.Contains(body, `data-engine="`+engineID+`"`) {
+			t.Fatalf("configured engine %q is missing from the frontend", engineID)
+		}
+	}
+}
+
+func TestUnconfiguredOptionalEnginesAreHidden(t *testing.T) {
+	t.Parallel()
+	handler := newConfigDrivenTestHandler(t, nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, engineID := range []string{"kokoro", "piper-ja"} {
+		if strings.Contains(body, `data-engine="`+engineID+`"`) {
+			t.Fatalf("unconfigured engine %q should not be rendered", engineID)
+		}
+	}
+}
+
 func TestHomeDefaultsToKittenAndOrdersEdgeLast(t *testing.T) {
 	t.Parallel()
 	engines := []*fakeEngine{
@@ -432,6 +469,29 @@ func newTestHandlerWithConfig(t *testing.T, service *tts.Service, settings map[s
 	}
 	builder := wf.NewBuilder(cfg)
 	builder.Service(ttssvc.NewWithService(service))
+	builder.Filter(NewRequestFilter())
+	builder.Rest(app)
+	handler := builder.Build().GetHandler()
+	if handler == nil {
+		t.Fatal("Go Web Frame returned a nil handler")
+	}
+	return handler
+}
+
+func newConfigDrivenTestHandler(t *testing.T, settings map[string]any) http.Handler {
+	t.Helper()
+	app, err := NewApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.NewConfig()
+	cfg.Put("web.server.port", testPort)
+	cfg.Put("captcha.enabled", false)
+	for key, value := range settings {
+		cfg.Put(key, value)
+	}
+	builder := wf.NewBuilder(cfg)
+	builder.Service(ttssvc.New())
 	builder.Filter(NewRequestFilter())
 	builder.Rest(app)
 	handler := builder.Build().GetHandler()
