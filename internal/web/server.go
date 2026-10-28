@@ -36,6 +36,7 @@ type App struct {
 	captcha   *clickguard.Manager
 	templates *template.Template
 	static    http.FileSystem
+	edgeGate  *requestGate
 }
 
 const clientCookieName = "voxlab_client"
@@ -100,6 +101,10 @@ func (a *App) Init(ctx *core.Context) error {
 		return err
 	}
 	a.captcha = captcha
+	a.edgeGate = newRequestGate(
+		cfg.GetIntOrDefault("tts.edge.max_concurrency", 4),
+		cfg.GetIntOrDefault("tts.edge.max_queue", 20),
+	)
 	ctx.Handle(http.MethodGet, "/", a.home)
 	ctx.Handle(http.MethodHead, "/", a.home)
 	ctx.Any("/api/voices", a.voices)
@@ -286,6 +291,21 @@ func (a *App) synthesize(req *frameweb.Request) (any, error) {
 	engineID := req.GetFormParam("engine")
 	voice := req.GetFormParam("voice")
 	text := req.GetFormParam("text")
+	if normalizedEngineID(engineID) == "edge" {
+		if err := a.edgeGate.acquire(req.Ctx()); err != nil {
+			header := req.Response().Header()
+			header.Set("Retry-After", "2")
+			status := http.StatusTooManyRequests
+			message := "Edge TTS is busy; retry shortly"
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				status = http.StatusRequestTimeout
+				message = "request canceled while waiting for Edge TTS"
+			}
+			writeJSON(req, status, map[string]any{"error": message})
+			return nil, nil
+		}
+		defer a.edgeGate.release()
+	}
 	audio, err := a.service.Synthesize(req.Ctx(), engineID, voice, text, speed)
 	if err != nil {
 		status := http.StatusBadGateway
@@ -313,6 +333,10 @@ func (a *App) synthesize(req *frameweb.Request) (any, error) {
 	header.Set("X-TTS-Voice", voice)
 	req.GinContext().Data(http.StatusOK, audio.MIMEType, audio.Data)
 	return nil, nil
+}
+
+func normalizedEngineID(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func (a *App) allowSynthesis(req *frameweb.Request) (bool, error) {

@@ -186,6 +186,8 @@ tts:
   edge:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
+    max_concurrency: 4
+    max_queue: 20
   kokoro:
     model: models/kokoro/kokoro-v1.0-quantized.onnx
     voices: models/kokoro/voices-v1.0.bin
@@ -207,6 +209,10 @@ captcha:
 `tts.engine_order` 同时决定引擎的注册、加载和页面显示顺序。列表中的可选引擎只有在
 对应配置存在时才会加载；未加入列表的引擎不会注册。未知或重复的引擎 ID 会导致
 服务启动失败，便于及时发现配置错误。
+
+浏览器直连 Edge 连续失败 3 次后会暂停直连 60 秒，期间自动使用后端。后端回退通道
+受 `tts.edge.max_concurrency` 和 `tts.edge.max_queue` 限制，队列满时返回 `429`，
+避免微软服务异常时压垮本服务。
 
 Kitten 与 Melo 不再启动任何外部音素化程序。中文使用内嵌词典和拼音到 IPA
 映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型。可选日语引擎使用内嵌

@@ -54,6 +54,8 @@
   let statusTimer = 0;
   let detectionTimer = 0;
   let languageToastTimer = 0;
+  let edgeDirectFailures = 0;
+  let edgeDirectDisabledUntil = 0;
   let detectionSequence = 0;
   let hasAudio = false;
   let isBusy = false;
@@ -839,6 +841,26 @@
     return synthesizeEdgeDirect(session.url, text, voice, speedValue);
   }
 
+  async function tryEdgeDirect(text, voice, speedValue) {
+    if (Date.now() < edgeDirectDisabledUntil) {
+      return null;
+    }
+    try {
+      const blob = await synthesizeEdgeInBrowser(text, voice, speedValue);
+      edgeDirectFailures = 0;
+      edgeDirectDisabledUntil = 0;
+      return blob;
+    } catch (error) {
+      edgeDirectFailures += 1;
+      if (edgeDirectFailures >= 3) {
+        edgeDirectDisabledUntil = Date.now() + 60000;
+        edgeDirectFailures = 0;
+      }
+      console.warn("Edge direct synthesis failed; falling back to the server", error);
+      return null;
+    }
+  }
+
   async function requestSynthesis(body, ticket = "") {
     const engine = activeEngine();
     const requestBody = new URLSearchParams(body);
@@ -849,15 +871,11 @@
     try {
       let blob = null;
       if (selectedEngine === "edge") {
-        try {
-          blob = await synthesizeEdgeInBrowser(
-            String(body.get("text") || ""),
-            String(body.get("voice") || ""),
-            Number(body.get("speed") || 1)
-          );
-        } catch (error) {
-          console.warn("Edge direct synthesis failed; falling back to the server", error);
-        }
+        blob = await tryEdgeDirect(
+          String(body.get("text") || ""),
+          String(body.get("voice") || ""),
+          Number(body.get("speed") || 1)
+        );
       }
       if (!blob) {
         const response = await fetch("/api/synthesize", {

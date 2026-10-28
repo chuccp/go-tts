@@ -19,6 +19,8 @@ tts:
   edge:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
+    max_concurrency: 4
+    max_queue: 20
   kitten:
     model: models/kitten/kitten_tts_nano_v0_8.onnx
     voices: models/kitten/voices.npz
