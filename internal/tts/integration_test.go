@@ -85,6 +85,13 @@ func TestLocalEngineIntegration(t *testing.T) {
 			speed:  1.2,
 		},
 		{
+			name:   "kokoro-chinese",
+			engine: "kokoro",
+			voice:  "zf_xiaobei",
+			text:   "你好呀",
+			speed:  1,
+		},
+		{
 			name:   "kitten",
 			engine: "kitten",
 			voice:  "Bella",
@@ -106,6 +113,11 @@ func TestLocalEngineIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			validateNonSilentWAV(t, audio.Data)
+			if output := os.Getenv("TTS_AUDIO_OUTPUT"); output != "" && test.name == "kokoro-chinese" {
+				if err := os.WriteFile(output, audio.Data, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 		})
 	}
 }

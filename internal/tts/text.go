@@ -13,7 +13,10 @@ import (
 	"unicode"
 )
 
-var whitespaceRE = regexp.MustCompile(`\s+`)
+var (
+	whitespaceRE     = regexp.MustCompile(`\s+`)
+	languageMarkerRE = regexp.MustCompile(`\([A-Za-z-]+\)`)
+)
 
 func cleanText(text string) string {
 	var b strings.Builder
@@ -144,7 +147,11 @@ func phonemize(ctx context.Context, executable, language, text string) (string, 
 	if strings.TrimSpace(text) == "" {
 		return "", nil
 	}
-	cmd := exec.CommandContext(ctx, executable, "-q", "-v", language, "--ipa", "--", text)
+	// Passing non-ASCII text as a Windows command-line argument is unreliable:
+	// espeak-ng can decode it using the wrong code page. UTF-8 stdin works
+	// consistently for Chinese and other non-Latin scripts on every platform.
+	cmd := exec.CommandContext(ctx, executable, "--stdin", "-q", "-v", language, "--ipa")
+	cmd.Stdin = strings.NewReader(text + "\n")
 	dataDir := filepath.Join(filepath.Dir(executable), "espeak-ng-data")
 	if info, err := os.Stat(dataDir); err == nil && info.IsDir() && os.Getenv("ESPEAK_DATA_PATH") == "" {
 		cmd.Env = append(os.Environ(), "ESPEAK_DATA_PATH="+dataDir)
@@ -160,6 +167,7 @@ func phonemize(ctx context.Context, executable, language, text string) (string, 
 		return "", errors.New(message)
 	}
 	phonemes := strings.TrimSpace(stdout.String())
+	phonemes = languageMarkerRE.ReplaceAllString(phonemes, " ")
 	phonemes = strings.ReplaceAll(phonemes, "\n", " ")
 	phonemes = strings.Join(strings.Fields(phonemes), " ")
 	if phonemes == "" {
