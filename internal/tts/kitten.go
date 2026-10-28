@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +18,6 @@ type KittenConfig struct {
 	VoicesPath string
 	ConfigPath string
 	RuntimeLib string
-	EspeakPath string
 }
 
 type kittenModelConfig struct {
@@ -41,9 +39,6 @@ type KittenEngine struct {
 }
 
 func NewKittenEngine(cfg KittenConfig) *KittenEngine {
-	if cfg.EspeakPath == "" {
-		cfg.EspeakPath = FindEspeakPath("")
-	}
 	e := &KittenEngine{
 		cfg:           cfg,
 		styles:        make(map[string]floatTensor),
@@ -59,9 +54,6 @@ func NewKittenEngine(cfg KittenConfig) *KittenEngine {
 func (e *KittenEngine) initialize() error {
 	if _, err := os.Stat(e.cfg.ModelPath); err != nil {
 		return fmt.Errorf("Kitten model is not ready: %w", err)
-	}
-	if _, err := exec.LookPath(e.cfg.EspeakPath); err != nil {
-		return fmt.Errorf("espeak-ng was not found; set -espeak or PATH")
 	}
 	tensors, err := LoadVoiceTensorFile(e.cfg.VoicesPath)
 	if err != nil {
@@ -228,7 +220,7 @@ func (e *KittenEngine) synthesizeChunk(
 	style floatTensor,
 	speed float32,
 ) ([]float32, error) {
-	phonemes, err := phonemize(ctx, e.cfg.EspeakPath, "en-us", text)
+	phonemes, err := phonemizeEnglish(ctx, text, false)
 	if err != nil {
 		return nil, err
 	}

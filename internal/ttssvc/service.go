@@ -35,19 +35,16 @@ func (s *Service) Init(ctx *core.Context) error {
 		maxChars = 5000
 	}
 	runtimeLib := cfg.GetString("tts.onnx.runtime_lib")
-	espeakPath := cfg.GetString("tts.espeak.path")
 	kokoro := tts.NewKokoroEngine(tts.KokoroConfig{
 		ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v0_19.onnx"),
 		VoicesPath: stringSetting(cfg, "tts.kokoro.voices", "models/kokoro/voices-v1.0.bin"),
 		RuntimeLib: runtimeLib,
-		EspeakPath: espeakPath,
 	})
 	kitten := tts.NewKittenEngine(tts.KittenConfig{
 		ModelPath:  stringSetting(cfg, "tts.kitten.model", "models/kitten/kitten_tts_nano_v0_8.onnx"),
 		VoicesPath: stringSetting(cfg, "tts.kitten.voices", "models/kitten/voices.npz"),
 		ConfigPath: stringSetting(cfg, "tts.kitten.config", "models/kitten/config.json"),
 		RuntimeLib: runtimeLib,
-		EspeakPath: espeakPath,
 	})
 	edge := tts.NewEdgeEngine(tts.EdgeConfig{
 		DefaultVoice: stringSetting(cfg, "tts.edge.default_voice", "zh-CN-XiaoxiaoNeural"),

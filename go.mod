@@ -3,6 +3,7 @@ module github.com/cao/go-tts
 go 1.26.0
 
 require (
+	github.com/androiddrew/go-g2p v0.2.0
 	github.com/chuccp/go-web-frame v1.0.19
 	github.com/gorilla/websocket v1.5.3
 	github.com/yalue/onnxruntime_go v1.30.0
@@ -12,11 +13,13 @@ require (
 require (
 	emperror.dev/errors v0.8.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
+	github.com/androiddrew/ortenv v0.2.0 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.3 // indirect
 	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect

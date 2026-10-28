@@ -3,7 +3,7 @@
 一个使用 Go + [`go-web-frame`](https://github.com/chuccp/go-web-frame) +
 `html/template` 实现的多引擎文字转语音 Web 应用，支持：
 
-- **Kokoro**：本地 ONNX、`espeak-ng` 音素化、多语言音色、语速控制。
+- **Kokoro**：本地 ONNX、纯 Go 中文/英文 G2P、中文与英文音色、语速控制。
 - **Kitten TTS**：本地轻量 ONNX、8 个内置音色、语速控制。
 - **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言。
 - 界面支持中文和 English 切换，并记住上次选择。
@@ -25,7 +25,6 @@
 
 - Go 1.26 或更高版本，且启用 CGO。
 - C 编译器：Windows 可使用 MinGW-w64，macOS 使用 Xcode Command Line Tools，Linux 使用 GCC。
-- `espeak-ng`：Kokoro 和 Kitten 的音素化依赖。
 - ONNX Runtime **1.25.0**：`onnxruntime_go` 的 C API 头文件对应该版本。
 - 网络：仅 Edge TTS 需要联网。
 
@@ -33,12 +32,6 @@ Windows 可下载
 [ONNX Runtime 1.25.0](https://github.com/microsoft/onnxruntime/releases/tag/v1.25.0)
 中的 `onnxruntime-win-x64-1.25.0.zip`。解压后把 `lib/onnxruntime.dll` 放到项目根目录、
 `runtime/` 或 `lib/` 下，也可以使用 `-onnx-lib` 指定绝对路径。
-
-`espeak-ng` 下载：
-
-- Windows：[espeak-ng 1.52.0](https://github.com/espeak-ng/espeak-ng/releases/tag/1.52.0)
-- macOS：`brew install espeak-ng`
-- Ubuntu/Debian：`sudo apt install espeak-ng`
 
 ## 下载本地模型
 
@@ -129,8 +122,6 @@ tts:
   max_chars: 5000
   onnx:
     runtime_lib: ""
-  espeak:
-    path: ""
   edge:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
@@ -148,8 +139,8 @@ captcha:
   period: 600
 ```
 
-Windows 便携版 eSpeak 可放在 `runtime/espeak-ng/espeak-ng.exe`。应用会自动找到同目录下的
-`espeak-ng-data` 并传给子进程，无需手工设置环境变量。
+Kokoro 与 Kitten 不再启动任何外部音素化程序。中文使用内嵌 pypinyin 词组词典和
+Misaki 拼音到 IPA 映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型。
 
 ## 点击验证与限流
 
@@ -252,6 +243,8 @@ go test ./internal/tts -run TestEdgeLiveIntegration -v
 - 使用 `WebFrame.Run()` 管理 Web 服务生命周期和优雅退出。
 - Edge TTS 直接使用 WebSocket 协议，包含当前 `Sec-MS-GEC` v2 令牌生成，不依赖 Python。
 - 长文本按句拆分；Kokoro 还会在音素 token 超过模型限制时继续递归拆分。
+- 中文 G2P 使用最长词组匹配处理“银行行长”“重庆”“重复”等多音字场景。
+- 英文 G2P 使用 `go-g2p` 的内嵌词典、词性模型和神经网络未知词回退，不启动外部进程。
 - Kokoro 输出 24 kHz float32 PCM，服务端转为单声道 16-bit WAV。
 - Edge 输出 `audio-24khz-48kbitrate-mono-mp3`；长文本的 MP3 分片在服务端顺序拼接。
 - 本地音色 NPZ/NPY 使用 Go 标准库解析，不依赖 NumPy。

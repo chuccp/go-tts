@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 
@@ -18,7 +17,6 @@ type KokoroConfig struct {
 	ModelPath  string
 	VoicesPath string
 	RuntimeLib string
-	EspeakPath string
 }
 
 type KokoroEngine struct {
@@ -37,10 +35,6 @@ func NewKokoroEngine(cfg KokoroConfig) *KokoroEngine {
 		styles:    make(map[string]floatTensor),
 		tokenizer: kokoroVocabulary(),
 	}
-	if cfg.EspeakPath == "" {
-		cfg.EspeakPath = FindEspeakPath("")
-	}
-	e.cfg.EspeakPath = cfg.EspeakPath
 	e.initErr = e.initialize()
 	return e
 }
@@ -48,9 +42,6 @@ func NewKokoroEngine(cfg KokoroConfig) *KokoroEngine {
 func (e *KokoroEngine) initialize() error {
 	if _, err := os.Stat(e.cfg.ModelPath); err != nil {
 		return fmt.Errorf("Kokoro model is not ready: %w", err)
-	}
-	if _, err := exec.LookPath(e.cfg.EspeakPath); err != nil {
-		return fmt.Errorf("espeak-ng was not found; set -espeak or PATH")
 	}
 	tensors, err := LoadVoiceTensorFile(e.cfg.VoicesPath)
 	if err != nil {
@@ -63,8 +54,12 @@ func (e *KokoroEngine) initialize() error {
 		if columns != kokoroStyleDim || rows == 0 {
 			continue
 		}
-		validStyles[name] = tensor
 		locale := kokoroLocale(name)
+		languageCode := languageCodeFromLocale(locale)
+		if languageCode != "en" && languageCode != "zh" {
+			continue
+		}
+		validStyles[name] = tensor
 		voices = append(voices, Voice{
 			ID:           name,
 			Name:         prettyKokoroName(name),
@@ -100,7 +95,7 @@ func (e *KokoroEngine) initialize() error {
 
 func (e *KokoroEngine) ID() string          { return "kokoro" }
 func (e *KokoroEngine) Name() string        { return "Kokoro" }
-func (e *KokoroEngine) Description() string { return "本地 ONNX · 82M · 多语言音色" }
+func (e *KokoroEngine) Description() string { return "本地 ONNX · 82M · 中文与英文音色" }
 func (e *KokoroEngine) Local() bool         { return true }
 func (e *KokoroEngine) SupportsSpeed() bool { return true }
 func (e *KokoroEngine) Available() error    { return e.initErr }
@@ -172,7 +167,7 @@ func (e *KokoroEngine) synthesizeChunk(
 	speed float32,
 	depth int,
 ) ([]float32, error) {
-	phonemes, err := phonemize(ctx, e.cfg.EspeakPath, language, text)
+	phonemes, err := phonemizeKokoro(ctx, language, text)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +245,19 @@ func (e *KokoroEngine) synthesizeChunk(
 		}
 	}()
 	return flattenTensor(outputs[0])
+}
+
+func phonemizeKokoro(ctx context.Context, language, text string) (string, error) {
+	switch language {
+	case "cmn":
+		return chinesePhonemes(ctx, text)
+	case "en-us":
+		return phonemizeEnglish(ctx, text, false)
+	case "en-gb":
+		return phonemizeEnglish(ctx, text, true)
+	default:
+		return "", fmt.Errorf("Kokoro text frontend does not support language %q", language)
+	}
 }
 
 func kokoroIONames(modelPath string) (string, string, error) {

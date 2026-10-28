@@ -21,10 +21,6 @@ func TestLocalEngineIntegration(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		runtimeLib = filepath.Join(root, "runtime", "libonnxruntime.so")
 	}
-	espeak := filepath.Join(root, "runtime", "espeak-ng", "espeak-ng.exe")
-	if runtime.GOOS != "windows" {
-		espeak = filepath.Join(root, "runtime", "espeak-ng", "espeak-ng")
-	}
 	kokoroModel := os.Getenv("TTS_KOKORO_MODEL")
 	if kokoroModel == "" {
 		kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19-int8.onnx")
@@ -36,7 +32,6 @@ func TestLocalEngineIntegration(t *testing.T) {
 	}
 	paths := []string{
 		runtimeLib,
-		espeak,
 		kokoroModel,
 		filepath.Join(root, "models", "kokoro", "voices-v1.0.bin"),
 		filepath.Join(root, "models", "kitten", "kitten_tts_nano_v0_8.onnx"),
@@ -52,14 +47,12 @@ func TestLocalEngineIntegration(t *testing.T) {
 		ModelPath:  kokoroModel,
 		VoicesPath: filepath.Join(root, "models", "kokoro", "voices-v1.0.bin"),
 		RuntimeLib: runtimeLib,
-		EspeakPath: espeak,
 	})
 	kitten := NewKittenEngine(KittenConfig{
 		ModelPath:  filepath.Join(root, "models", "kitten", "kitten_tts_nano_v0_8.onnx"),
 		VoicesPath: filepath.Join(root, "models", "kitten", "voices.npz"),
 		ConfigPath: filepath.Join(root, "models", "kitten", "config.json"),
 		RuntimeLib: runtimeLib,
-		EspeakPath: espeak,
 	})
 	if err := kokoro.Available(); err != nil {
 		t.Fatalf("Kokoro initialization failed: %v", err)

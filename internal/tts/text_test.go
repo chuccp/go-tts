@@ -1,11 +1,7 @@
 package tts
 
 import (
-	"context"
 	"math/rand"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -49,30 +45,5 @@ func TestSplitTextHonorsRuneLimit(t *testing.T) {
 				t.Fatalf("limit %d: chunk has %d runes", limit, got)
 			}
 		}
-	}
-}
-
-func TestPhonemizeChineseUsesUTF8Input(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := "espeak-ng"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	executable := filepath.Join(root, "runtime", "espeak-ng", name)
-	if _, err := os.Stat(executable); err != nil {
-		t.Skipf("espeak-ng test asset is missing: %s", executable)
-	}
-	phonemes, err := phonemize(context.Background(), executable, "cmn", "你好呀")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(phonemes, "(en)") || strings.Contains(phonemes, "(cmn)") {
-		t.Fatalf("phonemizer leaked language markers: %q", phonemes)
-	}
-	if !strings.Contains(phonemes, "ni") || !strings.Contains(phonemes, "ji") {
-		t.Fatalf("unexpected Mandarin phonemes: %q", phonemes)
 	}
 }

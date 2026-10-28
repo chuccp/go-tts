@@ -10,8 +10,6 @@ tts:
   max_chars: 5000
   onnx:
     runtime_lib: ""
-  espeak:
-    path: ""
   edge:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
