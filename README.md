@@ -123,10 +123,18 @@ models/piper-ja/
   model.onnx.json
 ```
 
-可从
-[Piper Plus つくよみちゃん `zs-v1`](https://huggingface.co/ayousanz/piper-plus-tsukuyomi-chan/tree/main/releases/zs-v1)
-下载 ONNX 与 JSON，并将 ONNX 重命名为 `model.onnx`。该音色遵循つくよみちゃん
-コーパス使用条款；使用或再分发前请确认其许可和内容限制。
+预转换文件已发布在
+[coke123/go-tts-models/piper-ja](https://huggingface.co/coke123/go-tts-models/tree/main/piper-ja)：
+
+```powershell
+hf download coke123/go-tts-models `
+  piper-ja/model.onnx `
+  piper-ja/model.onnx.json `
+  --local-dir models
+```
+
+原始音色来自 Piper Plus つくよみちゃん。该音色遵循つくよみちゃんコーパス使用条款；
+使用或再分发前请确认其许可和内容限制。
 
 ## 启动
 
