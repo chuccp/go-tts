@@ -11,7 +11,15 @@ func TestEdgeLiveIntegration(t *testing.T) {
 	if os.Getenv("TTS_NETWORK_INTEGRATION") != "1" {
 		t.Skip("set TTS_NETWORK_INTEGRATION=1 to call the Microsoft Edge TTS service")
 	}
-	engine := NewEdgeEngine(EdgeConfig{DefaultVoice: "en-US-AvaMultilingualNeural"})
+	voice := os.Getenv("TTS_EDGE_VOICE")
+	if voice == "" {
+		voice = "en-US-AvaMultilingualNeural"
+	}
+	text := os.Getenv("TTS_EDGE_TEXT")
+	if text == "" {
+		text = "This is a live Edge TTS integration test."
+	}
+	engine := NewEdgeEngine(EdgeConfig{DefaultVoice: voice})
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
@@ -22,7 +30,7 @@ func TestEdgeLiveIntegration(t *testing.T) {
 	if len(voices) < 100 {
 		t.Fatalf("only %d Edge voices were returned", len(voices))
 	}
-	audio, err := engine.Synthesize(ctx, "This is a live Edge TTS integration test.", "en-US-AvaMultilingualNeural", 1)
+	audio, err := engine.Synthesize(ctx, text, voice, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -96,6 +96,42 @@ func TestEdgeSynthesizeProtocol(t *testing.T) {
 	}
 }
 
+func TestEdgeRetriesAfterAbnormalWebSocketClosure(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int32
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+		_, _, _ = conn.ReadMessage()
+		if attempts.Add(1) == 1 {
+			_ = conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseAbnormalClosure, "transient"),
+				time.Now().Add(time.Second),
+			)
+			return
+		}
+		_ = conn.WriteMessage(websocket.BinaryMessage, testEdgeAudioFrame("retry", []byte("MP3-RETRY")))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("X-RequestId:retry\r\nPath:turn.end\r\n\r\n{}"))
+	}))
+	defer server.Close()
+
+	engine := NewEdgeEngine(EdgeConfig{})
+	engine.speechEndpoint = "ws" + strings.TrimPrefix(server.URL, "http")
+	audio, err := engine.Synthesize(context.Background(), "retry this", "en-US-TestNeural", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(audio.Data) != "MP3-RETRY" || attempts.Load() != 2 {
+		t.Fatalf("audio=%q attempts=%d", audio.Data, attempts.Load())
+	}
+}
+
 func TestEdgeVoiceListCachingAndFallback(t *testing.T) {
 	t.Parallel()
 	var requests atomic.Int32

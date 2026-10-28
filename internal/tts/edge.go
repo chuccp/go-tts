@@ -195,7 +195,7 @@ func (e *EdgeEngine) Synthesize(ctx context.Context, text, voice string, speed f
 		if err := ctx.Err(); err != nil {
 			return Audio{}, err
 		}
-		audio, err := e.synthesizeChunk(ctx, chunk, voice, speed)
+		audio, err := e.synthesizeChunkWithRetry(ctx, chunk, voice, speed)
 		if err != nil {
 			return Audio{}, fmt.Errorf("Edge chunk %d: %w", index+1, err)
 		}
@@ -210,6 +210,63 @@ func (e *EdgeEngine) Synthesize(ctx context.Context, text, voice string, speed f
 		Extension:  "mp3",
 		SampleRate: 24000,
 	}, nil
+}
+
+func (e *EdgeEngine) synthesizeChunkWithRetry(ctx context.Context, text, voice string, speed float64) ([]byte, error) {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(250*(1<<(attempt-1))) * time.Millisecond
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		audio, err := e.synthesizeChunk(ctx, text, voice, speed)
+		if err == nil {
+			return audio, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil || !isRetryableEdgeError(err) {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("Edge connection retry limit reached: %w", lastErr)
+}
+
+func isRetryableEdgeError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var closeError *websocket.CloseError
+	if errors.As(err, &closeError) {
+		switch closeError.Code {
+		case websocket.CloseAbnormalClosure,
+			websocket.CloseGoingAway,
+			websocket.CloseInternalServerErr,
+			websocket.CloseServiceRestart,
+			websocket.CloseTryAgainLater:
+			return true
+		default:
+			return false
+		}
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "read edge stream") ||
+		strings.Contains(message, "unexpected eof") ||
+		strings.Contains(message, "connection reset") ||
+		strings.Contains(message, "edge websocket: ")
 }
 
 func (e *EdgeEngine) synthesizeChunk(ctx context.Context, text, voice string, speed float64) ([]byte, error) {
