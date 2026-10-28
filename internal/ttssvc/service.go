@@ -47,11 +47,6 @@ func (s *Service) Init(ctx *core.Context) error {
 		TokensPath:  stringSetting(cfg, "tts.melo.tokens", "models/melo-zh/tokens.txt"),
 		RuntimeLib:  runtimeLib,
 	})
-	piperJapanese := tts.NewPiperJapaneseEngine(tts.PiperJapaneseConfig{
-		ModelPath:  stringSetting(cfg, "tts.piper.japanese.model", "models/piper-ja/model.onnx"),
-		ConfigPath: stringSetting(cfg, "tts.piper.japanese.config", "models/piper-ja/model.onnx.json"),
-		RuntimeLib: runtimeLib,
-	})
 	edge := tts.NewEdgeEngine(tts.EdgeConfig{
 		DefaultVoice: stringSetting(cfg, "tts.edge.default_voice", "zh-CN-XiaoxiaoNeural"),
 		ProxyURL:     cfg.GetString("tts.edge.proxy"),
@@ -64,7 +59,15 @@ func (s *Service) Init(ctx *core.Context) error {
 			RuntimeLib: runtimeLib,
 		}))
 	}
-	engines = append(engines, melo, piperJapanese, edge)
+	engines = append(engines, melo)
+	if cfg.HasKey("tts.piper.japanese.model") || cfg.HasKey("tts.piper.japanese.config") {
+		engines = append(engines, tts.NewPiperJapaneseEngine(tts.PiperJapaneseConfig{
+			ModelPath:  stringSetting(cfg, "tts.piper.japanese.model", "models/piper-ja/model.onnx"),
+			ConfigPath: stringSetting(cfg, "tts.piper.japanese.config", "models/piper-ja/model.onnx.json"),
+			RuntimeLib: runtimeLib,
+		}))
+	}
+	engines = append(engines, edge)
 	s.service = tts.NewService(engines...)
 	s.service.SetMaxTextRunes(maxChars)
 	return nil

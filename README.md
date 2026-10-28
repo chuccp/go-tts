@@ -5,9 +5,9 @@
 
 - **Kitten TTS**：本地轻量 ONNX、8 个英文内置音色、语速控制。
 - **Melo TTS**：本地中文专用 ONNX，使用词典处理多音字和韵律。
-- **Piper 日本語**：本地日语专用 ONNX，使用纯 Go 日文词典前端，不调用 espeak-ng。
 - **Edge TTS**：微软 Edge Read Aloud 在线音色，支持 400+ 音色和 90+ 语言。
 - **Kokoro**：代码完整保留；仅在 `application.yml` 配置 Kokoro 模型路径后启用。
+- **Piper 日本語**：代码完整保留；仅在 `application.yml` 配置日语模型路径后启用。
 - 界面支持中文和 English 切换，并记住上次选择。
 - 自动检测输入语言，按“语言 → 角色”级联选择音色，并提示语言不匹配。
 - 同一个页面内切换引擎、调节语速、试听和下载音频。
@@ -136,6 +136,16 @@ hf download coke123/go-tts-models `
 原始音色来自 Piper Plus つくよみちゃん。该音色遵循つくよみちゃんコーパス使用条款；
 使用或再分发前请确认其许可和内容限制。
 
+日语引擎默认不加载。需要启用时，在 `application.yml` 手动加入：
+
+```yaml
+tts:
+  piper:
+    japanese:
+      model: models/piper-ja/model.onnx
+      config: models/piper-ja/model.onnx.json
+```
+
 ## 启动
 
 ```powershell
@@ -176,10 +186,6 @@ tts:
     model: models/melo-zh/model.onnx
     lexicon: models/melo-zh/lexicon.txt
     tokens: models/melo-zh/tokens.txt
-  piper:
-    japanese:
-      model: models/piper-ja/model.onnx
-      config: models/piper-ja/model.onnx.json
 
 captcha:
   enabled: true
@@ -187,8 +193,9 @@ captcha:
   period: 600
 ```
 
-Kitten、Melo 与 Piper 不再启动任何外部音素化程序。中文使用内嵌词典和拼音到 IPA
-映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型；日语使用内嵌 IPADIC 词典。
+Kitten 与 Melo 不再启动任何外部音素化程序。中文使用内嵌词典和拼音到 IPA
+映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型。可选日语引擎使用内嵌
+IPADIC 词典。
 
 ## 点击验证与限流
 

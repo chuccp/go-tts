@@ -21,10 +21,6 @@ tts:
     model: models/melo-zh/model.onnx
     lexicon: models/melo-zh/lexicon.txt
     tokens: models/melo-zh/tokens.txt
-  piper:
-    japanese:
-      model: models/piper-ja/model.onnx
-      config: models/piper-ja/model.onnx.json
 
 captcha:
   enabled: true

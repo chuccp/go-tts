@@ -51,7 +51,7 @@ func TestServiceInitFromFrameworkConfig(t *testing.T) {
 	}
 }
 
-func TestKokoroIsDisabledWhenNotConfigured(t *testing.T) {
+func TestOptionalEnginesAreDisabledWhenNotConfigured(t *testing.T) {
 	t.Parallel()
 	cfg := config.NewConfig()
 	cfg.Put("tts.kitten.model", "missing/kitten.onnx")
@@ -59,16 +59,13 @@ func TestKokoroIsDisabledWhenNotConfigured(t *testing.T) {
 	cfg.Put("tts.melo.model", "missing/melo.onnx")
 	cfg.Put("tts.melo.lexicon", "missing/lexicon.txt")
 	cfg.Put("tts.melo.tokens", "missing/tokens.txt")
-	cfg.Put("tts.piper.japanese.model", "missing/ja.onnx")
-	cfg.Put("tts.piper.japanese.config", "missing/ja.onnx.json")
-
 	service := New()
 	if err := service.Init(framecore.NewContext(cfg, context.Background())); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = service.Close() })
 	statuses := service.Statuses(context.Background())
-	wantOrder := []string{"kitten", "melo", "piper-ja", "edge"}
+	wantOrder := []string{"kitten", "melo", "edge"}
 	if len(statuses) != len(wantOrder) {
 		t.Fatalf("engine count = %d, want %d", len(statuses), len(wantOrder))
 	}

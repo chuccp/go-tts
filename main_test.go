@@ -24,8 +24,8 @@ func TestDefaultApplicationYAML(t *testing.T) {
 	if got := cfg.GetString("tts.melo.model"); got != "models/melo-zh/model.onnx" {
 		t.Fatalf("tts.melo.model = %q", got)
 	}
-	if got := cfg.GetString("tts.piper.japanese.model"); got != "models/piper-ja/model.onnx" {
-		t.Fatalf("tts.piper.japanese.model = %q", got)
+	if cfg.HasKey("tts.piper.japanese.model") {
+		t.Fatal("tts.piper.japanese should be omitted from the default configuration")
 	}
 	if !cfg.GetBoolOrDefault("captcha.enabled", false) {
 		t.Fatal("captcha.enabled should default to true")
