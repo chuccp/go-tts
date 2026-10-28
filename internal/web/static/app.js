@@ -44,6 +44,8 @@
   const captchaRefresh = document.getElementById("captcha-refresh");
 
   const engines = JSON.parse(document.getElementById("engine-data").textContent);
+  const EDGE_DIRECT_FAILURE_LIMIT = 1;
+  const EDGE_DIRECT_COOLDOWN_MS = 10 * 60 * 1000;
   const initialEngine = document.querySelector(".engine-card[aria-checked='true']");
   let selectedEngine = initialEngine?.dataset.engine || engines[0]?.id || "";
   let selectedVoice = voiceSelect.value;
@@ -852,11 +854,11 @@
       return blob;
     } catch (error) {
       edgeDirectFailures += 1;
-      if (edgeDirectFailures >= 3) {
-        edgeDirectDisabledUntil = Date.now() + 60000;
+      if (edgeDirectFailures >= EDGE_DIRECT_FAILURE_LIMIT) {
+        edgeDirectDisabledUntil = Date.now() + EDGE_DIRECT_COOLDOWN_MS;
         edgeDirectFailures = 0;
+        console.info("Edge browser direct connection is unavailable; using the server fallback.", error?.message || error);
       }
-      console.warn("Edge direct synthesis failed; falling back to the server", error);
       return null;
     }
   }
