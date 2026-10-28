@@ -282,11 +282,38 @@ func TestHTTPMethodsAndSecurityHeaders(t *testing.T) {
 		response.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("missing security headers: %#v", response.Header())
 	}
+	if !strings.Contains(response.Header().Get("Content-Security-Policy"), "wss://speech.platform.bing.com") {
+		t.Fatalf("Edge WebSocket is missing from CSP: %s", response.Header().Get("Content-Security-Policy"))
+	}
 
 	static := httptest.NewRecorder()
 	handler.ServeHTTP(static, newTestRequest(http.MethodGet, "/static/app.js", ""))
 	if static.Code != http.StatusOK || !strings.Contains(static.Body.String(), "synthesize") {
 		t.Fatalf("static asset response: %d", static.Code)
+	}
+}
+
+func TestEdgeSessionEndpoint(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, tts.NewService(&fakeEngine{available: true}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/api/edge/session", ""))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(payload.URL, "wss://speech.platform.bing.com/") ||
+		!strings.Contains(payload.URL, "Sec-MS-GEC=") ||
+		!strings.Contains(payload.URL, "ConnectionId=") {
+		t.Fatalf("unexpected Edge session URL: %q", payload.URL)
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("cache-control = %q", response.Header().Get("Cache-Control"))
 	}
 }
 

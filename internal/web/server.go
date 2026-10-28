@@ -103,6 +103,7 @@ func (a *App) Init(ctx *core.Context) error {
 	ctx.Handle(http.MethodGet, "/", a.home)
 	ctx.Handle(http.MethodHead, "/", a.home)
 	ctx.Any("/api/voices", a.voices)
+	ctx.Handle(http.MethodGet, "/api/edge/session", a.edgeSession)
 	ctx.Any("/api/detect-language", a.detectLanguage)
 	ctx.Any("/api/synthesize", a.synthesize)
 	ctx.Handle(http.MethodGet, "/api/captcha/challenge", a.captchaChallenge)
@@ -110,6 +111,16 @@ func (a *App) Init(ctx *core.Context) error {
 	ctx.Any("/healthz", a.health)
 	ctx.StaticFs("/static", a.static)
 	return nil
+}
+
+func (a *App) edgeSession(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodGet {
+		return nil, methodNotAllowed(req, http.MethodGet)
+	}
+	header := req.Response().Header()
+	header.Set("Cache-Control", "no-store")
+	writeJSON(req, http.StatusOK, tts.NewEdgeDirectConnection(time.Now()))
+	return nil, nil
 }
 
 func (a *App) home(req *frameweb.Request) (any, error) {
@@ -475,7 +486,7 @@ func (f *RequestFilter) Init(*core.Context) error {
 func (f *RequestFilter) Handle(next frameweb.FilterChain, req *frameweb.Request) (any, error) {
 	started := time.Now()
 	header := req.Response().Header()
-	header.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+	header.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self' wss://speech.platform.bing.com; base-uri 'none'; frame-ancestors 'none'")
 	header.Set("Referrer-Policy", "no-referrer")
 	header.Set("X-Content-Type-Options", "nosniff")
 	header.Set("X-Frame-Options", "DENY")

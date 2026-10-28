@@ -668,6 +668,177 @@
     }
   }
 
+  function randomHex(byteCount) {
+    const values = new Uint8Array(byteCount);
+    crypto.getRandomValues(values);
+    return Array.from(values, (value) => value.toString(16).padStart(2, "0")).join("");
+  }
+
+  function edgeTimestamp(now = new Date()) {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${days[now.getUTCDay()]} ${months[now.getUTCMonth()]} ${pad(now.getUTCDate())} ` +
+      `${now.getUTCFullYear()} ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:` +
+      `${pad(now.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
+  }
+
+  function edgeSpeechConfig() {
+    return "X-Timestamp:" + edgeTimestamp() + "\r\n" +
+      "Content-Type:application/json; charset=utf-8\r\n" +
+      "Path:speech.config\r\n\r\n" +
+      '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false",' +
+      '"wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n';
+  }
+
+  function escapeEdgeXML(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("'", "&apos;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function edgeSSMLMessage(requestID, text, voice, speed) {
+    const locale = String(voice).split("-").slice(0, 2).join("-") || "en-US";
+    const rate = Math.round((speed - 1) * 100);
+    const ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='" +
+      `${escapeEdgeXML(locale)}'><voice name='${escapeEdgeXML(voice)}'>` +
+      `<prosody pitch='+0Hz' rate='${rate >= 0 ? "+" : ""}${rate}%' volume='+0%'>` +
+      `${escapeEdgeXML(text)}</prosody></voice></speak>`;
+    return "X-RequestId:" + requestID + "\r\n" +
+      "Content-Type:application/ssml+xml\r\n" +
+      "X-Timestamp:" + edgeTimestamp() + "Z\r\n" +
+      "Path:ssml\r\n\r\n" + ssml;
+  }
+
+  function parseEdgeMessageHeaders(value) {
+    const headers = new Map();
+    value.split("\r\n").forEach((line) => {
+      const separator = line.indexOf(":");
+      if (separator > 0) {
+        headers.set(line.slice(0, separator).trim().toLowerCase(), line.slice(separator + 1).trim());
+      }
+    });
+    return headers;
+  }
+
+  function edgeAudioFromFrame(buffer) {
+    const frame = new Uint8Array(buffer);
+    if (frame.length < 4) {
+      throw new Error("Invalid Edge binary audio frame");
+    }
+    const headerLength = (frame[0] << 8) | frame[1];
+    if (headerLength < 2 || headerLength > frame.length) {
+      throw new Error("Invalid Edge audio header length");
+    }
+    const headers = parseEdgeMessageHeaders(
+      new TextDecoder().decode(frame.subarray(2, headerLength))
+    );
+    if (headers.get("path") !== "audio") {
+      return null;
+    }
+    const payload = frame.slice(headerLength + 2);
+    const expected = Number.parseInt(headers.get("content-length") || "", 10);
+    if (Number.isFinite(expected) && expected > 0 && expected !== payload.length) {
+      throw new Error("Edge audio length mismatch");
+    }
+    return payload;
+  }
+
+  function synthesizeEdgeDirect(sessionURL, text, voice, speedValue) {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(sessionURL);
+      const audioFrames = [];
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeout);
+        try {
+          socket.close();
+        } catch (_) {
+          // The server may already have closed the connection.
+        }
+        if (error) {
+          reject(error);
+        } else {
+          resolve(value);
+        }
+      };
+      const timeout = window.setTimeout(() => {
+        finish(new Error("Edge direct synthesis timed out"));
+      }, 90000);
+
+      socket.binaryType = "arraybuffer";
+      socket.addEventListener("open", () => {
+        try {
+          socket.send(edgeSpeechConfig());
+          socket.send(edgeSSMLMessage(randomHex(16), text, voice, speedValue));
+        } catch (error) {
+          finish(error);
+        }
+      });
+      socket.addEventListener("message", (event) => {
+        try {
+          if (typeof event.data === "string") {
+            const separator = event.data.indexOf("\r\n\r\n");
+            if (separator < 0) {
+              return;
+            }
+            const headers = parseEdgeMessageHeaders(event.data.slice(0, separator));
+            if (headers.get("path") === "turn.end") {
+              if (audioFrames.length === 0) {
+                finish(new Error("Edge completed without audio"));
+                return;
+              }
+              const size = audioFrames.reduce((total, frame) => total + frame.length, 0);
+              const audio = new Uint8Array(size);
+              let offset = 0;
+              audioFrames.forEach((frame) => {
+                audio.set(frame, offset);
+                offset += frame.length;
+              });
+              finish(null, new Blob([audio], { type: "audio/mpeg" }));
+            }
+            return;
+          }
+          const frame = edgeAudioFromFrame(event.data);
+          if (frame?.length) {
+            audioFrames.push(frame);
+          }
+        } catch (error) {
+          finish(error);
+        }
+      });
+      socket.addEventListener("error", () => {
+        finish(new Error("Edge direct WebSocket failed"));
+      });
+      socket.addEventListener("close", (event) => {
+        if (!settled) {
+          finish(new Error(`Edge direct WebSocket closed (${event.code})`));
+        }
+      });
+    });
+  }
+
+  async function synthesizeEdgeInBrowser(text, voice, speedValue) {
+    const response = await fetch("/api/edge/session", {
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) {
+      throw new Error(`Edge session HTTP ${response.status}`);
+    }
+    const session = await response.json();
+    if (!session?.url) {
+      throw new Error("Edge session URL is missing");
+    }
+    return synthesizeEdgeDirect(session.url, text, voice, speedValue);
+  }
+
   async function requestSynthesis(body, ticket = "") {
     const engine = activeEngine();
     const requestBody = new URLSearchParams(body);
@@ -676,33 +847,47 @@
     }
     setBusy(true);
     try {
-      const response = await fetch("/api/synthesize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-          Accept: "audio/*, application/json"
-        },
-        body: requestBody
-      });
-      if (response.status === 428) {
-        const payload = await response.json().catch(() => ({}));
-        if (payload.captchaRequired && payload.captcha) {
-          setBusy(false);
-          openCaptcha(payload.captcha, body);
-          return;
-        }
-      }
-      if (!response.ok) {
-        let message = tr("error.synthesis", { status: response.status });
+      let blob = null;
+      if (selectedEngine === "edge") {
         try {
-          const payload = await response.json();
-          message = payload.error || message;
-        } catch (_) {
-          // Keep the status-based message for non-JSON errors.
+          blob = await synthesizeEdgeInBrowser(
+            String(body.get("text") || ""),
+            String(body.get("voice") || ""),
+            Number(body.get("speed") || 1)
+          );
+        } catch (error) {
+          console.warn("Edge direct synthesis failed; falling back to the server", error);
         }
-        throw new Error(message);
       }
-      const blob = await response.blob();
+      if (!blob) {
+        const response = await fetch("/api/synthesize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            Accept: "audio/*, application/json"
+          },
+          body: requestBody
+        });
+        if (response.status === 428) {
+          const payload = await response.json().catch(() => ({}));
+          if (payload.captchaRequired && payload.captcha) {
+            setBusy(false);
+            openCaptcha(payload.captcha, body);
+            return;
+          }
+        }
+        if (!response.ok) {
+          let message = tr("error.synthesis", { status: response.status });
+          try {
+            const payload = await response.json();
+            message = payload.error || message;
+          } catch (_) {
+            // Keep the status-based message for non-JSON errors.
+          }
+          throw new Error(message);
+        }
+        blob = await response.blob();
+      }
       if (blob.size === 0) {
         throw new Error(tr("error.emptyAudio"));
       }
