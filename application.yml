@@ -8,10 +8,6 @@ web:
 
 tts:
   max_chars: 5000
-  captcha:
-    enabled: true
-    limit: 10
-    period: 600
   onnx:
     runtime_lib: ""
   espeak:
@@ -26,3 +22,8 @@ tts:
     model: models/kitten/kitten_tts_nano_v0_8.onnx
     voices: models/kitten/voices.npz
     config: models/kitten/config.json
+
+captcha:
+  enabled: true
+  limit: 10
+  period: 600

@@ -21,13 +21,13 @@ func TestDefaultApplicationYAML(t *testing.T) {
 	if got := cfg.GetString("tts.kokoro.model"); got == "" {
 		t.Fatal("tts.kokoro.model is empty")
 	}
-	if !cfg.GetBoolOrDefault("tts.captcha.enabled", false) {
-		t.Fatal("tts.captcha.enabled should default to true")
+	if !cfg.GetBoolOrDefault("captcha.enabled", false) {
+		t.Fatal("captcha.enabled should default to true")
 	}
-	if got := cfg.GetInt("tts.captcha.limit"); got != 10 {
-		t.Fatalf("tts.captcha.limit = %d, want 10", got)
+	if got := cfg.GetInt("captcha.limit"); got != 10 {
+		t.Fatalf("captcha.limit = %d, want 10", got)
 	}
-	if got := cfg.GetInt("tts.captcha.period"); got != 600 {
-		t.Fatalf("tts.captcha.period = %d, want 600", got)
+	if got := cfg.GetInt("captcha.period"); got != 600 {
+		t.Fatalf("captcha.period = %d, want 600", got)
 	}
 }

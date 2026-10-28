@@ -127,10 +127,6 @@ web:
 
 tts:
   max_chars: 5000
-  captcha:
-    enabled: true
-    limit: 10
-    period: 600
   onnx:
     runtime_lib: ""
   espeak:
@@ -145,6 +141,11 @@ tts:
     model: models/kitten/kitten_tts_nano_v0_8.onnx
     voices: models/kitten/voices.npz
     config: models/kitten/config.json
+
+captcha:
+  enabled: true
+  limit: 10
+  period: 600
 ```
 
 Windows 便携版 eSpeak 可放在 `runtime/espeak-ng/espeak-ng.exe`。应用会自动找到同目录下的
@@ -157,9 +158,9 @@ Windows 便携版 eSpeak 可放在 `runtime/espeak-ng/espeak-ng.exe`。应用会
 造成的歧义。完成验证后计数会重置。
 
 - IP 和 HttpOnly Cookie 两套计数同时生效；任意一个达到上限都会触发验证。
-- `tts.captcha.enabled`：设为 `false` 可完全关闭验证。
-- `tts.captcha.limit`：时间窗口内允许的合成次数。
-- `tts.captcha.period`：滚动时间窗口，单位为秒；例如 `600` 表示 10 分钟。
+- `captcha.enabled`：设为 `false` 可完全关闭验证。
+- `captcha.limit`：时间窗口内允许的合成次数。
+- `captcha.period`：滚动时间窗口，单位为秒；例如 `600` 表示 10 分钟。
 
 验证图使用内嵌 SVG 图标，点击坐标只保存在 AES-GCM 加密的挑战数据中，不会以明文
 发送给浏览器。

@@ -202,9 +202,9 @@ func TestSynthesizeRequiresClickCaptchaAfterLimit(t *testing.T) {
 		available: true,
 		audio:     []byte("mp3-data"),
 	}), map[string]any{
-		"tts.captcha.enabled": true,
-		"tts.captcha.limit":   10,
-		"tts.captcha.period":  600,
+		"captcha.enabled": true,
+		"captcha.limit":   10,
+		"captcha.period":  600,
 	})
 	form := url.Values{
 		"engine": {"fake"},
@@ -267,7 +267,7 @@ func TestSynthesizeRequiresClickCaptchaAfterLimit(t *testing.T) {
 func TestCaptchaVerifyFailureReturnsFreshChallenge(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandlerWithConfig(t, tts.NewService(&fakeEngine{available: true}), map[string]any{
-		"tts.captcha.enabled": true,
+		"captcha.enabled": true,
 	})
 	challengeResponse := httptest.NewRecorder()
 	handler.ServeHTTP(challengeResponse, newTestRequest(http.MethodGet, "/api/captcha/challenge", ""))
@@ -333,7 +333,7 @@ func newTestHandlerWithConfig(t *testing.T, service *tts.Service, settings map[s
 	}
 	cfg := config.NewConfig()
 	cfg.Put("web.server.port", testPort)
-	cfg.Put("tts.captcha.enabled", false)
+	cfg.Put("captcha.enabled", false)
 	for key, value := range settings {
 		cfg.Put(key, value)
 	}

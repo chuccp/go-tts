@@ -88,11 +88,11 @@ func (a *App) Init(ctx *core.Context) error {
 	a.service = core.MustService[*ttssvc.Service](ctx)
 	cfg := ctx.GetConfig()
 	captchaConfig := clickguard.DefaultConfig()
-	captchaConfig.Enabled = cfg.GetBoolOrDefault("tts.captcha.enabled", captchaConfig.Enabled)
-	captchaConfig.Limit = cfg.GetIntOrDefault("tts.captcha.limit", captchaConfig.Limit)
-	periodSeconds := cfg.GetIntOrDefault("tts.captcha.period", int(captchaConfig.Window/time.Second))
+	captchaConfig.Enabled = cfg.GetBoolOrDefault("captcha.enabled", captchaConfig.Enabled)
+	captchaConfig.Limit = cfg.GetIntOrDefault("captcha.limit", captchaConfig.Limit)
+	periodSeconds := cfg.GetIntOrDefault("captcha.period", int(captchaConfig.Window/time.Second))
 	if periodSeconds <= 0 {
-		return fmt.Errorf("tts.captcha.period must be a positive number of seconds")
+		return fmt.Errorf("captcha.period must be a positive number of seconds")
 	}
 	captchaConfig.Window = time.Duration(periodSeconds) * time.Second
 	captcha, err := clickguard.New(captchaConfig)
