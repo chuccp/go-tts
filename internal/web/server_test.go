@@ -464,6 +464,7 @@ func newTestHandlerWithConfig(t *testing.T, service *tts.Service, settings map[s
 	cfg := config.NewConfig()
 	cfg.Put("web.server.port", testPort)
 	cfg.Put("captcha.enabled", false)
+	cfg.Put("tts.engine_order", []string{"edge", "kitten", "kokoro", "melo", "piper-ja"})
 	for key, value := range settings {
 		cfg.Put(key, value)
 	}
@@ -487,6 +488,7 @@ func newConfigDrivenTestHandler(t *testing.T, settings map[string]any) http.Hand
 	cfg := config.NewConfig()
 	cfg.Put("web.server.port", testPort)
 	cfg.Put("captcha.enabled", false)
+	cfg.Put("tts.engine_order", []string{"edge", "kitten", "kokoro", "melo", "piper-ja"})
 	for key, value := range settings {
 		cfg.Put(key, value)
 	}

@@ -170,6 +170,12 @@ web:
 
 tts:
   max_chars: 5000
+  engine_order:
+    - edge
+    - kitten
+    - kokoro
+    - melo
+    - piper-ja
   onnx:
     runtime_lib: ""
   edge:
@@ -192,6 +198,10 @@ captcha:
   limit: 10
   period: 600
 ```
+
+`tts.engine_order` 同时决定引擎的注册、加载和页面显示顺序。列表中的可选引擎只有在
+对应配置存在时才会加载；未加入列表的引擎不会注册。未知或重复的引擎 ID 会导致
+服务启动失败，便于及时发现配置错误。
 
 Kitten 与 Melo 不再启动任何外部音素化程序。中文使用内嵌词典和拼音到 IPA
 映射；英文使用内嵌 Misaki 词典及 ONNX 发音回退模型。可选日语引擎使用内嵌

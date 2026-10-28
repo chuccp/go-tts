@@ -8,6 +8,12 @@ web:
 
 tts:
   max_chars: 5000
+  engine_order:
+    - edge
+    - kitten
+    - kokoro
+    - melo
+    - piper-ja
   onnx:
     runtime_lib: ""
   edge:

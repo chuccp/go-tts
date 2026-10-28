@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/chuccp/go-web-frame/config"
@@ -17,6 +18,13 @@ func TestDefaultApplicationYAML(t *testing.T) {
 	}
 	if got := cfg.GetInt("tts.max_chars"); got != 5000 {
 		t.Fatalf("tts.max_chars = %d, want 5000", got)
+	}
+	var engineOrder []string
+	if err := cfg.UnmarshalKey("tts.engine_order", &engineOrder); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"edge", "kitten", "kokoro", "melo", "piper-ja"}; !reflect.DeepEqual(engineOrder, want) {
+		t.Fatalf("tts.engine_order = %v, want %v", engineOrder, want)
 	}
 	if cfg.HasKey("tts.kokoro.model") {
 		t.Fatal("tts.kokoro should be omitted from the default configuration")
