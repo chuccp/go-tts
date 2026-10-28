@@ -21,6 +21,7 @@ import (
 const testPort = 19009
 
 type fakeEngine struct {
+	id           string
 	available    bool
 	audio        []byte
 	voices       []tts.Voice
@@ -28,7 +29,12 @@ type fakeEngine struct {
 	defaultVoice string
 }
 
-func (f *fakeEngine) ID() string          { return "fake" }
+func (f *fakeEngine) ID() string {
+	if f.id != "" {
+		return f.id
+	}
+	return "fake"
+}
 func (f *fakeEngine) Name() string        { return "Fake TTS" }
 func (f *fakeEngine) Description() string { return "test engine" }
 func (f *fakeEngine) Local() bool         { return false }
@@ -139,6 +145,32 @@ func TestHomePrioritizesEngineDefaultVoice(t *testing.T) {
 	first := strings.Index(body, `value="first"`)
 	if second < 0 || first < 0 || second > first {
 		t.Fatalf("default voice was not prioritized: second=%d first=%d", second, first)
+	}
+}
+
+func TestHomeDefaultsToKokoroAndOrdersEdgeLast(t *testing.T) {
+	t.Parallel()
+	engines := []*fakeEngine{
+		{id: "kokoro", available: true, defaultVoice: "k", voices: []tts.Voice{{ID: "k", Name: "Kokoro"}}},
+		{id: "kitten", available: true, defaultVoice: "n", voices: []tts.Voice{{ID: "n", Name: "Kitten"}}},
+		{id: "edge", available: true, defaultVoice: "e", voices: []tts.Voice{{ID: "e", Name: "Edge"}}},
+	}
+	handler := newTestHandler(t, tts.NewService(engines[0], engines[1], engines[2]))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
+	body := response.Body.String()
+
+	kokoroIndex := strings.Index(body, `data-engine="kokoro"`)
+	kittenIndex := strings.Index(body, `data-engine="kitten"`)
+	edgeIndex := strings.Index(body, `data-engine="edge"`)
+	if kokoroIndex < 0 || kittenIndex < 0 || edgeIndex < 0 ||
+		!(kokoroIndex < kittenIndex && kittenIndex < edgeIndex) {
+		t.Fatalf("unexpected engine order: kokoro=%d kitten=%d edge=%d", kokoroIndex, kittenIndex, edgeIndex)
+	}
+	cardStart := kokoroIndex
+	cardEnd := strings.Index(body[cardStart:], ">")
+	if cardEnd < 0 || !strings.Contains(body[cardStart:cardStart+cardEnd+1], `aria-checked="true"`) {
+		t.Fatal("Kokoro should be selected by default")
 	}
 }
 

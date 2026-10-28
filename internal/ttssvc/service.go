@@ -53,7 +53,7 @@ func (s *Service) Init(ctx *core.Context) error {
 		DefaultVoice: stringSetting(cfg, "tts.edge.default_voice", "zh-CN-XiaoxiaoNeural"),
 		ProxyURL:     cfg.GetString("tts.edge.proxy"),
 	})
-	s.service = tts.NewService(edge, kokoro, kitten)
+	s.service = tts.NewService(kokoro, kitten, edge)
 	s.service.SetMaxTextRunes(maxChars)
 	return nil
 }

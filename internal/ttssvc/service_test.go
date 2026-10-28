@@ -35,8 +35,14 @@ func TestServiceInitFromFrameworkConfig(t *testing.T) {
 	if len(statuses) != 3 {
 		t.Fatalf("engine count = %d", len(statuses))
 	}
-	if statuses[0].ID != "edge" || !statuses[0].Available {
-		t.Fatalf("Edge should be available: %+v", statuses[0])
+	wantOrder := []string{"kokoro", "kitten", "edge"}
+	for i, want := range wantOrder {
+		if statuses[i].ID != want {
+			t.Fatalf("engine order[%d] = %q, want %q", i, statuses[i].ID, want)
+		}
+	}
+	if !statuses[2].Available {
+		t.Fatalf("Edge should be available: %+v", statuses[2])
 	}
 }
 
