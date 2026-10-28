@@ -32,6 +32,16 @@
   const audioDuration = document.getElementById("audio-duration");
   const download = document.getElementById("download");
   const resultPlaceholder = document.querySelector(".result-placeholder");
+  const captchaDialog = document.getElementById("captcha-dialog");
+  const captchaClose = document.getElementById("captcha-close");
+  const captchaImageWrap = document.getElementById("captcha-image-wrap");
+  const captchaImage = document.getElementById("captcha-image");
+  const captchaMarkerCanvas = document.getElementById("captcha-marker-canvas");
+  const captchaTargets = document.getElementById("captcha-targets");
+  const captchaStatus = document.getElementById("captcha-status");
+  const captchaClear = document.getElementById("captcha-clear");
+  const captchaUndo = document.getElementById("captcha-undo");
+  const captchaRefresh = document.getElementById("captcha-refresh");
 
   const engines = JSON.parse(document.getElementById("engine-data").textContent);
   const initialEngine = document.querySelector(".engine-card[aria-checked='true']");
@@ -47,6 +57,11 @@
   let hasAudio = false;
   let isBusy = false;
   let lastOutput = null;
+  let captchaChallenge = null;
+  let captchaClicks = [];
+  let captchaVerifying = false;
+  let captchaSucceeded = false;
+  let pendingCaptchaBody = null;
 
   const samples = {
     zh: "欢迎使用 VoxLab。这里汇聚了 Kokoro、Kitten 与 Edge TTS 三套语音引擎。输入一段文字，选择喜欢的声音，让文字自然地流动起来。",
@@ -86,6 +101,9 @@
         name: languageLabel(detectedLanguage.code, detectedLanguage.name),
         confidence: detectedLanguage.confidence
       });
+    }
+    if (!captchaDialog.hidden && !captchaVerifying && !captchaSucceeded) {
+      updateCaptchaRemaining();
     }
     const engine = activeEngine();
     if (engine && languageSelect.options.length > 0) {
@@ -454,32 +472,182 @@
     }
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearError();
-    const content = text.value.trim();
-    if (!content) {
-      showError(tr("error.textRequired"));
-      text.focus();
-      return;
-    }
-    const engine = activeEngine();
-    if (!engine?.available) {
-      showError(engine?.error || tr("error.engineUnavailable"));
-      return;
-    }
-    if (loadingVoices) {
-      showError(tr("error.voiceSyncing"));
-      return;
-    }
+  function setCaptchaStatus(message, state = "") {
+    captchaStatus.textContent = message;
+    captchaStatus.classList.toggle("is-success", state === "success");
+    captchaStatus.classList.toggle("is-error", state === "error");
+  }
 
-    const body = new URLSearchParams({
-      engine: selectedEngine,
-      language: languageSelect.value,
-      voice: voiceSelect.value,
-      text: content,
-      speed: speed.value
+  function updateCaptchaRemaining() {
+    const remaining = Math.max(0, 3 - captchaClicks.length);
+    setCaptchaStatus(tr("captcha.remaining", { count: remaining }));
+  }
+
+  function drawCaptchaMarkers() {
+    const width = captchaImage.naturalWidth || 300;
+    const height = captchaImage.naturalHeight || 180;
+    if (captchaMarkerCanvas.width !== width || captchaMarkerCanvas.height !== height) {
+      captchaMarkerCanvas.width = width;
+      captchaMarkerCanvas.height = height;
+    }
+    const context = captchaMarkerCanvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+    context.clearRect(0, 0, width, height);
+    captchaClicks.forEach((click, index) => {
+      context.beginPath();
+      context.arc(click.x, click.y, 12, 0, Math.PI * 2);
+      context.fillStyle = "#d8ff67";
+      context.fill();
+      context.lineWidth = 2;
+      context.strokeStyle = "#f4f5ee";
+      context.stroke();
+      context.fillStyle = "#182008";
+      context.font = "bold 12px sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(String(index + 1), click.x, click.y + 0.5);
     });
+  }
+
+  function resetCaptchaClicks() {
+    captchaClicks = [];
+    captchaVerifying = false;
+    captchaSucceeded = false;
+    drawCaptchaMarkers();
+    updateCaptchaRemaining();
+  }
+
+  function applyCaptchaChallenge(challenge) {
+    if (!challenge?.image || !Array.isArray(challenge.targets) ||
+      challenge.targets.length !== 3 || !challenge?.clickCode) {
+      throw new Error(tr("captcha.loadFailed"));
+    }
+    captchaChallenge = challenge;
+    captchaTargets.replaceChildren();
+    challenge.targets.forEach((target, index) => {
+      const image = document.createElement("img");
+      image.src = target;
+      image.alt = tr("captcha.targetAlt", { index: index + 1 });
+      image.draggable = false;
+      captchaTargets.append(image);
+    });
+    captchaImage.src = challenge.image;
+    resetCaptchaClicks();
+  }
+
+  function openCaptcha(challenge, body) {
+    pendingCaptchaBody = body;
+    applyCaptchaChallenge(challenge);
+    captchaDialog.hidden = false;
+    document.body.classList.add("captcha-open");
+    window.setTimeout(() => captchaClose.focus(), 0);
+  }
+
+  function closeCaptcha() {
+    captchaDialog.hidden = true;
+    document.body.classList.remove("captcha-open");
+    pendingCaptchaBody = null;
+    captchaChallenge = null;
+    captchaClicks = [];
+    captchaVerifying = false;
+    captchaSucceeded = false;
+  }
+
+  function handleCaptchaImageClick(event) {
+    if (!captchaChallenge || captchaVerifying || captchaSucceeded || captchaClicks.length >= 3) {
+      return;
+    }
+    const rect = captchaImage.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const width = captchaImage.naturalWidth || 300;
+    const height = captchaImage.naturalHeight || 180;
+    captchaClicks.push({
+      x: (event.clientX - rect.left) * (width / rect.width),
+      y: (event.clientY - rect.top) * (height / rect.height)
+    });
+    drawCaptchaMarkers();
+    if (captchaClicks.length >= 3) {
+      verifyCaptchaClicks();
+    } else {
+      updateCaptchaRemaining();
+    }
+  }
+
+  async function verifyCaptchaClicks() {
+    if (!captchaChallenge || !pendingCaptchaBody || captchaVerifying) {
+      return;
+    }
+    captchaVerifying = true;
+    setCaptchaStatus(tr("captcha.verifying"));
+    const body = new URLSearchParams({
+      clickCode: captchaChallenge.clickCode,
+      clickXs: captchaClicks.map((click) => Math.round(click.x)).join(","),
+      clickYs: captchaClicks.map((click) => Math.round(click.y)).join(",")
+    });
+    try {
+      const response = await fetch("/api/captcha/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          Accept: "application/json"
+        },
+        body
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ticket) {
+        captchaVerifying = false;
+        if (payload.captcha) {
+          applyCaptchaChallenge(payload.captcha);
+        } else {
+          captchaClicks = [];
+          drawCaptchaMarkers();
+        }
+        setCaptchaStatus(tr("captcha.failed"), "error");
+        return;
+      }
+      captchaSucceeded = true;
+      setCaptchaStatus(tr("captcha.success"), "success");
+      const synthesisBody = pendingCaptchaBody;
+      captchaDialog.hidden = true;
+      document.body.classList.remove("captcha-open");
+      pendingCaptchaBody = null;
+      window.setTimeout(() => requestSynthesis(synthesisBody, payload.ticket), 350);
+    } catch (_) {
+      captchaVerifying = false;
+      captchaClicks = [];
+      drawCaptchaMarkers();
+      setCaptchaStatus(tr("captcha.loadFailed"), "error");
+    }
+  }
+
+  async function refreshCaptcha() {
+    if (!pendingCaptchaBody || captchaVerifying) {
+      return;
+    }
+    try {
+      const response = await fetch("/api/captcha/challenge", {
+        headers: { Accept: "application/json" }
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.captcha) {
+        throw new Error(tr("captcha.loadFailed"));
+      }
+      applyCaptchaChallenge(payload.captcha);
+    } catch (_) {
+      setCaptchaStatus(tr("captcha.loadFailed"), "error");
+    }
+  }
+
+  async function requestSynthesis(body, ticket = "") {
+    const engine = activeEngine();
+    const requestBody = new URLSearchParams(body);
+    if (ticket) {
+      requestBody.set("captchaTicket", ticket);
+    }
     setBusy(true);
     try {
       const response = await fetch("/api/synthesize", {
@@ -488,8 +656,16 @@
           "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
           Accept: "audio/*, application/json"
         },
-        body
+        body: requestBody
       });
+      if (response.status === 428) {
+        const payload = await response.json().catch(() => ({}));
+        if (payload.captchaRequired && payload.captcha) {
+          setBusy(false);
+          openCaptcha(payload.captcha, body);
+          return;
+        }
+      }
       if (!response.ok) {
         let message = tr("error.synthesis", { status: response.status });
         try {
@@ -502,7 +678,7 @@
       }
       const blob = await response.blob();
       if (blob.size === 0) {
-        throw new Error("服务返回了空音频。");
+        throw new Error(tr("error.emptyAudio"));
       }
       if (audioURL) {
         URL.revokeObjectURL(audioURL);
@@ -536,6 +712,64 @@
       showError(error instanceof Error ? error.message : tr("error.generic"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearError();
+    const content = text.value.trim();
+    if (!content) {
+      showError(tr("error.textRequired"));
+      text.focus();
+      return;
+    }
+    const engine = activeEngine();
+    if (!engine?.available) {
+      showError(engine?.error || tr("error.engineUnavailable"));
+      return;
+    }
+    if (loadingVoices) {
+      showError(tr("error.voiceSyncing"));
+      return;
+    }
+
+    const body = new URLSearchParams({
+      engine: selectedEngine,
+      language: languageSelect.value,
+      voice: voiceSelect.value,
+      text: content,
+      speed: speed.value
+    });
+    await requestSynthesis(body);
+  });
+
+  captchaImage.addEventListener("load", drawCaptchaMarkers);
+  captchaImage.addEventListener("error", () => {
+    if (!captchaDialog.hidden) {
+      setCaptchaStatus(tr("captcha.loadFailed"), "error");
+    }
+  });
+  captchaImageWrap.addEventListener("click", handleCaptchaImageClick);
+  captchaClear.addEventListener("click", () => {
+    if (!captchaVerifying && !captchaSucceeded) {
+      resetCaptchaClicks();
+    }
+  });
+  captchaUndo.addEventListener("click", () => {
+    if (!captchaVerifying && !captchaSucceeded && captchaClicks.length > 0) {
+      captchaClicks.pop();
+      drawCaptchaMarkers();
+      updateCaptchaRemaining();
+    }
+  });
+  captchaRefresh.addEventListener("click", refreshCaptcha);
+  document.querySelectorAll("[data-captcha-close]").forEach((element) => {
+    element.addEventListener("click", closeCaptcha);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !captchaDialog.hidden) {
+      closeCaptcha();
     }
   });
 

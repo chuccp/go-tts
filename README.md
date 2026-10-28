@@ -127,6 +127,10 @@ web:
 
 tts:
   max_chars: 5000
+  captcha:
+    enabled: true
+    limit: 10
+    window: 10m
   onnx:
     runtime_lib: ""
   espeak:
@@ -146,6 +150,21 @@ tts:
 Windows 便携版 eSpeak 可放在 `runtime/espeak-ng/espeak-ng.exe`。应用会自动找到同目录下的
 `espeak-ng-data` 并传给子进程，无需手工设置环境变量。
 
+## 点击验证与限流
+
+合成接口默认启用点击验证。同一个客户端在滚动时间窗口内前 10 次可以正常合成，
+后续请求会要求依次点击图片中的 3 个图形图标。图标不包含文字，避免不同语言和文化
+造成的歧义。完成验证后计数会重置。
+
+- IP 和 HttpOnly Cookie 两套计数同时生效；任意一个达到上限都会触发验证。
+- `tts.captcha.enabled`：设为 `false` 可完全关闭验证。
+- `tts.captcha.limit`：时间窗口内允许的合成次数。
+- `tts.captcha.window`：滚动时间窗口，使用 Go duration 格式，例如 `30s`、`10m`、`1h`。
+
+验证图使用内嵌 SVG 图标，点击坐标只保存在 AES-GCM 加密的挑战数据中，不会以明文
+发送给浏览器。
+验证成功后返回的票据与客户端 Cookie 绑定，且只能使用一次。
+
 ## HTTP 接口
 
 `POST /api/synthesize`，使用 `application/x-www-form-urlencoded`：
@@ -163,9 +182,32 @@ speed=1.0
 {"error":"具体错误信息"}
 ```
 
+当触发点击验证时返回 `428 Precondition Required`：
+
+```json
+{
+  "captchaRequired": true,
+  "captcha": {
+    "type": "click",
+    "image": "data:image/svg+xml;base64,...",
+    "targets": [
+      "data:image/svg+xml;base64,...",
+      "data:image/svg+xml;base64,...",
+      "data:image/svg+xml;base64,..."
+    ],
+    "clickCode": "...",
+    "expiresIn": 120
+  }
+}
+```
+
+验证成功后，再次提交 `/api/synthesize` 时附加 `captchaTicket` 表单字段。
+
 其他接口：
 
 - `GET /api/voices?engine=edge|kokoro|kitten`
+- `GET /api/captcha/challenge`
+- `POST /api/captcha/verify`
 - `GET /healthz`
 
 ## 测试

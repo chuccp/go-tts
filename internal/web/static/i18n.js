@@ -69,7 +69,22 @@
       "error.emptyAudio": "服务返回了空音频。",
       "error.synthesis": "合成失败（HTTP {status}）",
       "error.generic": "合成失败，请稍后重试。",
-      "error.playback": "浏览器无法播放这段音频，请尝试下载后播放。"
+      "error.playback": "浏览器无法播放这段音频，请尝试下载后播放。",
+      "captcha.kicker": "SECURITY CHECK",
+      "captcha.title": "安全验证",
+      "captcha.instruction": "请依次点击下面三个图标：",
+      "captcha.remaining": "还需点击 {count} 个图标",
+      "captcha.verifying": "正在验证…",
+      "captcha.success": "验证成功",
+      "captcha.failed": "验证未通过，请重新点击",
+      "captcha.clear": "清空",
+      "captcha.undo": "撤销",
+      "captcha.refresh": "刷新",
+      "captcha.close": "关闭验证",
+      "captcha.imageAlt": "安全验证图片，包含三个图形图标",
+      "captcha.targetAlt": "第 {index} 个目标图标",
+      "captcha.loadFailed": "验证图片加载失败，请稍后重试。",
+      "captcha.expired": "验证已过期，请重新点击图标。"
     },
     en: {
       "page.title": "VoxLab · Multi-engine Text to Speech",
@@ -138,7 +153,22 @@
       "error.emptyAudio": "The service returned empty audio.",
       "error.synthesis": "Synthesis failed (HTTP {status})",
       "error.generic": "Synthesis failed. Try again.",
-      "error.playback": "This audio cannot be played in the browser. Try downloading it."
+      "error.playback": "This audio cannot be played in the browser. Try downloading it.",
+      "captcha.kicker": "SECURITY CHECK",
+      "captcha.title": "Security check",
+      "captcha.instruction": "Click these three icons in order:",
+      "captcha.remaining": "Click {count} more icons",
+      "captcha.verifying": "Verifying…",
+      "captcha.success": "Verified",
+      "captcha.failed": "Verification failed. Try clicking again.",
+      "captcha.clear": "Clear",
+      "captcha.undo": "Undo",
+      "captcha.refresh": "Refresh",
+      "captcha.close": "Close verification",
+      "captcha.imageAlt": "Security image containing three geometric icons",
+      "captcha.targetAlt": "Target icon {index}",
+      "captcha.loadFailed": "Could not load the verification image. Try again.",
+      "captcha.expired": "Verification expired. Click the icons again."
     }
   };
 
@@ -166,6 +196,9 @@
     });
     document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
       element.placeholder = t(element.dataset.i18nPlaceholder);
+    });
+    document.querySelectorAll("[data-i18n-alt]").forEach((element) => {
+      element.alt = t(element.dataset.i18nAlt);
     });
     document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
       element.setAttribute("aria-label", t(element.dataset.i18nAria));

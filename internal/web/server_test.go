@@ -196,6 +196,108 @@ func TestSynthesizeRejectsUnknownEngine(t *testing.T) {
 	}
 }
 
+func TestSynthesizeRequiresClickCaptchaAfterLimit(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandlerWithConfig(t, tts.NewService(&fakeEngine{
+		available: true,
+		audio:     []byte("mp3-data"),
+	}), map[string]any{
+		"tts.captcha.enabled": true,
+		"tts.captcha.limit":   10,
+		"tts.captcha.window":  "10m",
+	})
+	form := url.Values{
+		"engine": {"fake"},
+		"voice":  {"test"},
+		"text":   {"hello"},
+		"speed":  {"1"},
+	}
+	for attempt := 1; attempt <= 10; attempt++ {
+		request := newTestRequest(http.MethodPost, "/api/synthesize", form.Encode())
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		request.Header.Set("Cookie", fmt.Sprintf("%s=client-%d", clientCookieName, attempt))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("request %d status = %d: %s", attempt, response.Code, response.Body.String())
+		}
+	}
+
+	request := newTestRequest(http.MethodPost, "/api/synthesize", form.Encode())
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Cookie", clientCookieName+"=another-client")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusPreconditionRequired {
+		t.Fatalf("third request status = %d, want 428: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		CaptchaRequired bool `json:"captchaRequired"`
+		Limit           int  `json:"limit"`
+		WindowSeconds   int  `json:"windowSeconds"`
+		Captcha         struct {
+			Type      string   `json:"type"`
+			Image     string   `json:"image"`
+			Targets   []string `json:"targets"`
+			ClickCode string   `json:"clickCode"`
+		} `json:"captcha"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.CaptchaRequired || payload.Limit != 10 || payload.WindowSeconds != 600 {
+		t.Fatalf("unexpected captcha response: %+v", payload)
+	}
+	if payload.Captcha.Type != "click" ||
+		!strings.HasPrefix(payload.Captcha.Image, "data:image/svg+xml;base64,") ||
+		len(payload.Captcha.Targets) != 3 ||
+		payload.Captcha.ClickCode == "" {
+		t.Fatalf("invalid click challenge: %+v", payload.Captcha)
+	}
+	for _, target := range payload.Captcha.Targets {
+		if !strings.HasPrefix(target, "data:image/svg+xml;base64,") {
+			t.Fatal("captcha target is not an SVG data URL")
+		}
+	}
+	if strings.Contains(response.Body.String(), `"points"`) {
+		t.Fatal("captcha response leaked click coordinates")
+	}
+}
+
+func TestCaptchaVerifyFailureReturnsFreshChallenge(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandlerWithConfig(t, tts.NewService(&fakeEngine{available: true}), map[string]any{
+		"tts.captcha.enabled": true,
+	})
+	challengeResponse := httptest.NewRecorder()
+	handler.ServeHTTP(challengeResponse, newTestRequest(http.MethodGet, "/api/captcha/challenge", ""))
+	if challengeResponse.Code != http.StatusOK {
+		t.Fatalf("challenge status = %d: %s", challengeResponse.Code, challengeResponse.Body.String())
+	}
+	var challenge struct {
+		Captcha struct {
+			ClickCode string `json:"clickCode"`
+		} `json:"captcha"`
+	}
+	if err := json.Unmarshal(challengeResponse.Body.Bytes(), &challenge); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{
+		"clickCode": {challenge.Captcha.ClickCode},
+		"clickXs":   {"1,2,3"},
+		"clickYs":   {"4,5,6"},
+	}
+	request := newTestRequest(http.MethodPost, "/api/captcha/verify", form.Encode())
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest ||
+		!strings.Contains(response.Body.String(), `"captchaRequired":true`) ||
+		!strings.Contains(response.Body.String(), `"clickCode"`) {
+		t.Fatalf("unexpected verification failure: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestDetectLanguageEndpoint(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, tts.NewService(&fakeEngine{available: true}))
@@ -220,6 +322,10 @@ func TestDetectLanguageEndpoint(t *testing.T) {
 }
 
 func newTestHandler(t *testing.T, service *tts.Service) http.Handler {
+	return newTestHandlerWithConfig(t, service, nil)
+}
+
+func newTestHandlerWithConfig(t *testing.T, service *tts.Service, settings map[string]any) http.Handler {
 	t.Helper()
 	app, err := NewApp()
 	if err != nil {
@@ -227,6 +333,10 @@ func newTestHandler(t *testing.T, service *tts.Service) http.Handler {
 	}
 	cfg := config.NewConfig()
 	cfg.Put("web.server.port", testPort)
+	cfg.Put("tts.captcha.enabled", false)
+	for key, value := range settings {
+		cfg.Put(key, value)
+	}
 	builder := wf.NewBuilder(cfg)
 	builder.Service(ttssvc.NewWithService(service))
 	builder.Filter(NewRequestFilter())

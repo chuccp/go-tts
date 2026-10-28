@@ -198,6 +198,39 @@
     </footer>
   </div>
 
+  <div id="captcha-dialog" class="captcha-overlay" hidden>
+    <div class="captcha-backdrop" data-captcha-close></div>
+    <section class="captcha-dialog" role="dialog" aria-modal="true" aria-labelledby="captcha-title">
+      <header class="captcha-header">
+        <div>
+          <span class="result-kicker" data-i18n="captcha.kicker">SECURITY CHECK</span>
+          <h2 id="captcha-title" data-i18n="captcha.title">安全验证</h2>
+        </div>
+        <button id="captcha-close" class="captcha-close" type="button" data-captcha-close
+          data-i18n-aria="captcha.close">×</button>
+      </header>
+
+      <div class="captcha-body">
+        <p class="captcha-prompt">
+          <span data-i18n="captcha.instruction">请依次点击下面三个图标：</span>
+          <span id="captcha-targets" class="captcha-targets"></span>
+        </p>
+        <div id="captcha-image-wrap" class="captcha-image-wrap">
+          <img id="captcha-image" alt="" data-i18n-alt="captcha.imageAlt" draggable="false">
+          <canvas id="captcha-marker-canvas" aria-hidden="true"></canvas>
+        </div>
+        <div class="captcha-status-row">
+          <span id="captcha-status" aria-live="polite"></span>
+          <div class="captcha-tools">
+            <button id="captcha-clear" type="button" data-i18n="captcha.clear">清空</button>
+            <button id="captcha-undo" type="button" data-i18n="captcha.undo">撤销</button>
+            <button id="captcha-refresh" type="button" data-i18n="captcha.refresh">刷新</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <script id="engine-data" type="application/json">{{.EngineDataJSON}}</script>
 </body>
 </html>

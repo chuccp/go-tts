@@ -8,6 +8,10 @@ web:
 
 tts:
   max_chars: 5000
+  captcha:
+    enabled: true
+    limit: 10
+    window: 10m
   onnx:
     runtime_lib: ""
   espeak:

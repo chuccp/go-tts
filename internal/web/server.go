@@ -3,7 +3,9 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cao/go-tts/internal/clickguard"
 	"github.com/cao/go-tts/internal/langdetect"
 	"github.com/cao/go-tts/internal/tts"
 	"github.com/cao/go-tts/internal/ttssvc"
@@ -30,9 +33,12 @@ var assets embed.FS
 type App struct {
 	core.IService
 	service   *ttssvc.Service
+	captcha   *clickguard.Manager
 	templates *template.Template
 	static    http.FileSystem
 }
+
+const clientCookieName = "voxlab_client"
 
 type pageData struct {
 	Engines          []tts.EngineStatus
@@ -80,11 +86,29 @@ func NewApp() (*App, error) {
 // Init registers the application through Go Web Frame's controller system.
 func (a *App) Init(ctx *core.Context) error {
 	a.service = core.MustService[*ttssvc.Service](ctx)
+	cfg := ctx.GetConfig()
+	captchaConfig := clickguard.DefaultConfig()
+	captchaConfig.Enabled = cfg.GetBoolOrDefault("tts.captcha.enabled", captchaConfig.Enabled)
+	captchaConfig.Limit = cfg.GetIntOrDefault("tts.captcha.limit", captchaConfig.Limit)
+	if value := strings.TrimSpace(cfg.GetString("tts.captcha.window")); value != "" {
+		window, err := time.ParseDuration(value)
+		if err != nil || window <= 0 {
+			return fmt.Errorf("tts.captcha.window must be a positive duration: %q", value)
+		}
+		captchaConfig.Window = window
+	}
+	captcha, err := clickguard.New(captchaConfig)
+	if err != nil {
+		return err
+	}
+	a.captcha = captcha
 	ctx.Handle(http.MethodGet, "/", a.home)
 	ctx.Handle(http.MethodHead, "/", a.home)
 	ctx.Any("/api/voices", a.voices)
 	ctx.Any("/api/detect-language", a.detectLanguage)
 	ctx.Any("/api/synthesize", a.synthesize)
+	ctx.Handle(http.MethodGet, "/api/captcha/challenge", a.captchaChallenge)
+	ctx.Handle(http.MethodPost, "/api/captcha/verify", a.verifyCaptcha)
 	ctx.Any("/healthz", a.health)
 	ctx.StaticFs("/static", a.static)
 	return nil
@@ -243,6 +267,13 @@ func (a *App) synthesize(req *frameweb.Request) (any, error) {
 		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "invalid speed"})
 		return nil, nil
 	}
+	allowed, err := a.allowSynthesis(req)
+	if err != nil {
+		return nil, frameweb.NewInternalError().WithError(err)
+	}
+	if !allowed {
+		return nil, nil
+	}
 	engineID := req.GetFormParam("engine")
 	voice := req.GetFormParam("voice")
 	text := req.GetFormParam("text")
@@ -273,6 +304,135 @@ func (a *App) synthesize(req *frameweb.Request) (any, error) {
 	header.Set("X-TTS-Voice", voice)
 	req.GinContext().Data(http.StatusOK, audio.MIMEType, audio.Data)
 	return nil, nil
+}
+
+func (a *App) allowSynthesis(req *frameweb.Request) (bool, error) {
+	if !a.captcha.Enabled() {
+		return true, nil
+	}
+	ip, client := a.captchaClient(req)
+	if ticket := strings.TrimSpace(req.GetFormParam("captchaTicket")); ticket != "" &&
+		a.captcha.ConsumeTicket(ticket, client) {
+		a.captcha.Reset(ip, client)
+		a.captcha.Allow(ip, client)
+		return true, nil
+	}
+	if a.captcha.Allow(ip, client) {
+		return true, nil
+	}
+	challenge, err := a.captcha.NewChallenge()
+	if err != nil {
+		return false, err
+	}
+	a.writeCaptchaRequired(req, challenge)
+	return false, nil
+}
+
+func (a *App) captchaChallenge(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodGet {
+		return nil, methodNotAllowed(req, http.MethodGet)
+	}
+	a.captchaClient(req)
+	challenge, err := a.captcha.NewChallenge()
+	if err != nil {
+		return nil, frameweb.NewInternalError().WithError(err)
+	}
+	header := req.Response().Header()
+	header.Set("Cache-Control", "no-store")
+	writeJSON(req, http.StatusOK, map[string]any{
+		"captchaRequired": true,
+		"captcha":         challenge,
+		"limit":           a.captcha.Limit(),
+		"windowSeconds":   int(a.captcha.Window() / time.Second),
+	})
+	return nil, nil
+}
+
+func (a *App) verifyCaptcha(req *frameweb.Request) (any, error) {
+	if req.Request().Method != http.MethodPost {
+		return nil, methodNotAllowed(req, http.MethodPost)
+	}
+	req.Request().Body = http.MaxBytesReader(req.GinContext().Writer, req.Request().Body, 32<<10)
+	if err := req.Request().ParseForm(); err != nil {
+		writeJSON(req, http.StatusBadRequest, map[string]any{"error": "invalid form data"})
+		return nil, nil
+	}
+	_, client := a.captchaClient(req)
+	result, err := a.captcha.Verify(
+		req.GetFormParam("clickCode"),
+		req.GetFormParam("clickXs"),
+		req.GetFormParam("clickYs"),
+		client,
+	)
+	if err != nil {
+		challenge, challengeErr := a.captcha.NewChallenge()
+		if challengeErr != nil {
+			return nil, frameweb.NewInternalError().WithError(challengeErr)
+		}
+		writeJSON(req, http.StatusBadRequest, map[string]any{
+			"error":           "captcha verification failed",
+			"captchaRequired": true,
+			"captcha":         challenge,
+		})
+		return nil, nil
+	}
+	header := req.Response().Header()
+	header.Set("Cache-Control", "no-store")
+	writeJSON(req, http.StatusOK, result)
+	return nil, nil
+}
+
+func (a *App) writeCaptchaRequired(req *frameweb.Request, challenge *clickguard.Challenge) {
+	header := req.Response().Header()
+	header.Set("Cache-Control", "no-store")
+	writeJSON(req, http.StatusPreconditionRequired, map[string]any{
+		"captchaRequired": true,
+		"captcha":         challenge,
+		"limit":           a.captcha.Limit(),
+		"windowSeconds":   int(a.captcha.Window() / time.Second),
+	})
+}
+
+func (a *App) captchaClient(req *frameweb.Request) (string, string) {
+	client := strings.TrimSpace(req.Cookie().Get(clientCookieName))
+	if !validClientToken(client) {
+		raw := make([]byte, 24)
+		if _, err := rand.Read(raw); err != nil {
+			client = fmt.Sprintf("%d", time.Now().UnixNano())
+		} else {
+			client = base64.RawURLEncoding.EncodeToString(raw)
+		}
+		secure := req.Request().TLS != nil || strings.EqualFold(req.GetHeader("X-Forwarded-Proto"), "https")
+		req.Cookie().Set(
+			clientCookieName,
+			client,
+			frameweb.WithHttpOnly(true),
+			frameweb.WithSameSite(http.SameSiteLaxMode),
+			frameweb.WithSecure(secure),
+			frameweb.WithPath("/"),
+		)
+	}
+	ip := strings.TrimSpace(req.ClientIP())
+	if ip == "" {
+		ip = strings.TrimSpace(req.RemoteAddr())
+	}
+	return ip, client
+}
+
+func validClientToken(value string) bool {
+	if len(value) < 24 || len(value) > 80 {
+		return false
+	}
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (a *App) health(req *frameweb.Request) (any, error) {
