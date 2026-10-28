@@ -36,7 +36,7 @@ func (s *Service) Init(ctx *core.Context) error {
 	}
 	runtimeLib := cfg.GetString("tts.onnx.runtime_lib")
 	kokoro := tts.NewKokoroEngine(tts.KokoroConfig{
-		ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v0_19.onnx"),
+		ModelPath:  stringSetting(cfg, "tts.kokoro.model", "models/kokoro/kokoro-v1.0-quantized.onnx"),
 		VoicesPath: stringSetting(cfg, "tts.kokoro.voices", "models/kokoro/voices-v1.0.bin"),
 		RuntimeLib: runtimeLib,
 	})

@@ -23,9 +23,16 @@ func TestLocalEngineIntegration(t *testing.T) {
 	}
 	kokoroModel := os.Getenv("TTS_KOKORO_MODEL")
 	if kokoroModel == "" {
-		kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19-int8.onnx")
-		if _, err := os.Stat(kokoroModel); err != nil {
-			kokoroModel = filepath.Join(root, "models", "kokoro", "kokoro-v0_19.onnx")
+		for _, name := range []string{
+			"kokoro-v1.0-quantized.onnx",
+			"kokoro-v0_19-int8.onnx",
+			"kokoro-v0_19.onnx",
+		} {
+			candidate := filepath.Join(root, "models", "kokoro", name)
+			if _, err := os.Stat(candidate); err == nil {
+				kokoroModel = candidate
+				break
+			}
 		}
 	} else if !filepath.IsAbs(kokoroModel) {
 		kokoroModel = filepath.Join(root, kokoroModel)
@@ -85,6 +92,13 @@ func TestLocalEngineIntegration(t *testing.T) {
 			speed:  1,
 		},
 		{
+			name:   "kokoro-chinese-polyphones",
+			engine: "kokoro",
+			voice:  "zf_xiaobei",
+			text:   "银行行长，重庆重复，长大长度。",
+			speed:  1,
+		},
+		{
 			name:   "kitten",
 			engine: "kitten",
 			voice:  "Bella",
@@ -107,6 +121,11 @@ func TestLocalEngineIntegration(t *testing.T) {
 			}
 			validateNonSilentWAV(t, audio.Data)
 			if output := os.Getenv("TTS_AUDIO_OUTPUT"); output != "" && test.name == "kokoro-chinese" {
+				if err := os.WriteFile(output, audio.Data, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if output := os.Getenv("TTS_AUDIO_OUTPUT_POLYPHONIC"); output != "" && test.name == "kokoro-chinese-polyphones" {
 				if err := os.WriteFile(output, audio.Data, 0o644); err != nil {
 					t.Fatal(err)
 				}

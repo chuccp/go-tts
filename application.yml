@@ -14,7 +14,7 @@ tts:
     default_voice: zh-CN-XiaoxiaoNeural
     proxy: ""
   kokoro:
-    model: models/kokoro/kokoro-v0_19-int8.onnx
+    model: models/kokoro/kokoro-v1.0-quantized.onnx
     voices: models/kokoro/voices-v1.0.bin
   kitten:
     model: models/kitten/kitten_tts_nano_v0_8.onnx

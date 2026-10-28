@@ -18,8 +18,8 @@ func TestDefaultApplicationYAML(t *testing.T) {
 	if got := cfg.GetInt("tts.max_chars"); got != 5000 {
 		t.Fatalf("tts.max_chars = %d, want 5000", got)
 	}
-	if got := cfg.GetString("tts.kokoro.model"); got == "" {
-		t.Fatal("tts.kokoro.model is empty")
+	if got := cfg.GetString("tts.kokoro.model"); got != "models/kokoro/kokoro-v1.0-quantized.onnx" {
+		t.Fatalf("tts.kokoro.model = %q, want the quality-tested v1.0 quantized model", got)
 	}
 	if !cfg.GetBoolOrDefault("captcha.enabled", false) {
 		t.Fatal("captcha.enabled should default to true")

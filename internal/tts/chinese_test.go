@@ -70,3 +70,26 @@ func TestChinesePhonemesUseKnownKokoroTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestChinesePhonemesMatchOfficialTokenIDs(t *testing.T) {
+	phonemes, err := chinesePhonemes(context.Background(), "你好呀")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vocabulary := kokoroVocabulary()
+	tokens := make([]int64, 0, len(phonemes))
+	for _, r := range phonemes {
+		if token, ok := vocabulary[r]; ok {
+			tokens = append(tokens, token)
+		}
+	}
+	want := []int64{56, 51, 169, 66, 43, 63, 169, 16, 52, 43}
+	if len(tokens) != len(want) {
+		t.Fatalf("tokens = %v, want %v (phonemes %q)", tokens, want, phonemes)
+	}
+	for i := range want {
+		if tokens[i] != want[i] {
+			t.Fatalf("tokens = %v, want %v (phonemes %q)", tokens, want, phonemes)
+		}
+	}
+}
