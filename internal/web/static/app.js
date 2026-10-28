@@ -844,6 +844,9 @@
   }
 
   async function tryEdgeDirect(text, voice, speedValue) {
+    if (!/\bEdg(?:A|iOS)?\//.test(navigator.userAgent)) {
+      return null;
+    }
     if (Date.now() < edgeDirectDisabledUntil) {
       return null;
     }
