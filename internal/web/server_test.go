@@ -171,6 +171,21 @@ func TestHomeGroupsJapaneseRolesUnderJapaneseLanguage(t *testing.T) {
 	}
 }
 
+func TestHomeRendersLanguageMismatchAsToast(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, tts.NewService(&fakeEngine{available: true}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, newTestRequest(http.MethodGet, "/", ""))
+	body := response.Body.String()
+	if !strings.Contains(body, `id="language-warning" class="toast toast-warning"`) ||
+		!strings.Contains(body, `aria-live="polite"`) {
+		t.Fatalf("language mismatch toast is missing: %s", body)
+	}
+	if strings.Contains(body, `id="language-warning" class="notice warning"`) {
+		t.Fatal("language mismatch still uses the inline notice layout")
+	}
+}
+
 func TestHomeDefaultsToKittenAndOrdersEdgeLast(t *testing.T) {
 	t.Parallel()
 	engines := []*fakeEngine{

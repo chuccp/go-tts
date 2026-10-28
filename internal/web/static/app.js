@@ -53,6 +53,7 @@
   let loadingVoices = false;
   let statusTimer = 0;
   let detectionTimer = 0;
+  let languageToastTimer = 0;
   let detectionSequence = 0;
   let hasAudio = false;
   let isBusy = false;
@@ -334,33 +335,47 @@
     loadVoices(engineID);
   }
 
+  function hideLanguageToast() {
+    window.clearTimeout(languageToastTimer);
+    languageToastTimer = 0;
+    languageWarning.hidden = true;
+  }
+
+  function showLanguageToast(message) {
+    window.clearTimeout(languageToastTimer);
+    languageWarning.textContent = message;
+    languageWarning.hidden = false;
+    languageToastTimer = window.setTimeout(() => {
+      languageWarning.hidden = true;
+      languageToastTimer = 0;
+    }, 4500);
+  }
+
   function updateLanguageWarning() {
     const engine = activeEngine();
     if (!engine || !detectedLanguage?.code) {
-      languageWarning.hidden = true;
+      hideLanguageToast();
       return;
     }
     const voices = activeVoices(engine);
     const supported = voices.some((voice) => voiceLanguageCode(voice) === detectedLanguage.code);
     if (!supported) {
-      languageWarning.textContent = tr("warning.unsupported", {
+      showLanguageToast(tr("warning.unsupported", {
         language: languageLabel(detectedLanguage.code, detectedLanguage.name),
         engine: engine.name
-      });
-      languageWarning.hidden = false;
+      }));
       return;
     }
     const currentCode = languageSelect.value;
     if (currentCode && currentCode !== detectedLanguage.code) {
       const currentName = languageSelect.selectedOptions[0]?.dataset.name || currentCode;
-      languageWarning.textContent = tr("warning.mismatch", {
+      showLanguageToast(tr("warning.mismatch", {
         detected: languageLabel(detectedLanguage.code, detectedLanguage.name),
         selected: languageLabel(currentCode, currentName)
-      });
-      languageWarning.hidden = false;
+      }));
       return;
     }
-    languageWarning.hidden = true;
+    hideLanguageToast();
   }
 
   async function detectInputLanguage(content) {
