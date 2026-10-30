@@ -1,0 +1,187 @@
+name: Build and package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go test ./...
+          go vet ./...
+
+  package:
+    name: Package ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            runtime_asset: onnxruntime-linux-x64-1.25.0.tgz
+          - runner: windows-latest
+            goos: windows
+            goarch: amd64
+            runtime_asset: onnxruntime-win-x64-1.25.0.zip
+          - runner: macos-14
+            goos: darwin
+            goarch: arm64
+            runtime_asset: onnxruntime-osx-arm64-1.25.0.tgz
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install MinGW
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc
+
+      - name: Build Windows binary
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/voxlab.exe .
+
+      - name: Build Unix binary
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" -o dist/voxlab .
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUNTIME_ASSET: ${{ matrix.runtime_asset }}
+        run: |
+          $stage = "dist/voxlab-windows-amd64"
+          New-Item -ItemType Directory -Force -Path "$stage/runtime" | Out-Null
+          Copy-Item "dist/voxlab.exe" "$stage/voxlab.exe"
+          Copy-Item "application.yml" "$stage/application.yml"
+          Copy-Item "README.md" "$stage/README.md"
+          Copy-Item "THIRD_PARTY_NOTICES.md" "$stage/THIRD_PARTY_NOTICES.md"
+
+          $archive = Join-Path $env:RUNNER_TEMP $env:RUNTIME_ASSET
+          $ort = Join-Path $env:RUNNER_TEMP "onnxruntime"
+          Invoke-WebRequest `
+            -Uri "https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/$env:RUNTIME_ASSET" `
+            -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $ort -Force
+          $runtime = Get-ChildItem $ort -Recurse -Filter onnxruntime.dll | Select-Object -First 1
+          if (-not $runtime) {
+            throw "onnxruntime.dll was not found in the release archive"
+          }
+          Copy-Item $runtime.FullName "$stage/runtime/onnxruntime.dll"
+          Compress-Archive -Path "$stage/*" -DestinationPath "dist/voxlab-windows-amd64.zip" -Force
+
+      - name: Package Linux
+        if: matrix.goos == 'linux'
+        shell: bash
+        env:
+          RUNTIME_ASSET: ${{ matrix.runtime_asset }}
+        run: |
+          stage="dist/voxlab-linux-amd64"
+          mkdir -p "$stage/runtime"
+          cp dist/voxlab "$stage/voxlab"
+          cp application.yml README.md THIRD_PARTY_NOTICES.md "$stage/"
+          curl -fL \
+            "https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/${RUNTIME_ASSET}" \
+            -o "${RUNNER_TEMP}/${RUNTIME_ASSET}"
+          mkdir -p "${RUNNER_TEMP}/onnxruntime"
+          tar -xzf "${RUNNER_TEMP}/${RUNTIME_ASSET}" -C "${RUNNER_TEMP}/onnxruntime" --strip-components=1
+          cp -a "${RUNNER_TEMP}/onnxruntime/lib/"* "$stage/runtime/"
+          tar -czf dist/voxlab-linux-amd64.tar.gz -C dist voxlab-linux-amd64
+
+      - name: Package macOS
+        if: matrix.goos == 'darwin'
+        shell: bash
+        env:
+          RUNTIME_ASSET: ${{ matrix.runtime_asset }}
+        run: |
+          stage="dist/voxlab-darwin-arm64"
+          mkdir -p "$stage/runtime"
+          cp dist/voxlab "$stage/voxlab"
+          chmod +x "$stage/voxlab"
+          cp application.yml README.md THIRD_PARTY_NOTICES.md "$stage/"
+          curl -fL \
+            "https://github.com/microsoft/onnxruntime/releases/download/v1.25.0/${RUNTIME_ASSET}" \
+            -o "${RUNNER_TEMP}/${RUNTIME_ASSET}"
+          mkdir -p "${RUNNER_TEMP}/onnxruntime"
+          tar -xzf "${RUNNER_TEMP}/${RUNTIME_ASSET}" -C "${RUNNER_TEMP}/onnxruntime" --strip-components=1
+          cp -a "${RUNNER_TEMP}/onnxruntime/lib/"* "$stage/runtime/"
+          tar -czf dist/voxlab-darwin-arm64.tar.gz -C dist voxlab-darwin-arm64
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxlab-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: voxlab-*
+          path: release
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.zip
+            release/*.tar.gz
+          generate_release_notes: true
