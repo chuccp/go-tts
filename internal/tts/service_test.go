@@ -42,6 +42,48 @@ func (e *stubEngine) Synthesize(_ context.Context, text, voice string, speed flo
 	return Audio{Data: []byte("audio"), MIMEType: "audio/wav", Extension: "wav"}, nil
 }
 
+type rangedStubEngine struct {
+	stubEngine
+}
+
+func (e *rangedStubEngine) SpeedRange() (float64, float64) { return 0.25, 1.5 }
+
+func TestEngineSpeedRanges(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		engine Engine
+		min    float64
+	}{
+		{"edge", &EdgeEngine{}, MinSpeed},
+		{"kitten", &KittenEngine{}, MinLocalSpeed},
+		{"kokoro", &KokoroEngine{}, MinLocalSpeed},
+		{"melo", &MeloEngine{}, MinLocalSpeed},
+		{"piper-ja", &PiperJapaneseEngine{}, MinLocalSpeed},
+	}
+	for _, test := range tests {
+		min, max := speedRange(test.engine)
+		if min != test.min || max != MaxSpeed {
+			t.Errorf("%s speed range = %g-%g, want %g-%g", test.name, min, max, test.min, MaxSpeed)
+		}
+	}
+}
+
+func TestServiceUsesEngineSpeedRange(t *testing.T) {
+	t.Parallel()
+	engine := &rangedStubEngine{stubEngine{available: true, voices: []Voice{{ID: "default"}}}}
+	service := NewService(engine)
+	if _, err := service.Synthesize(context.Background(), "stub", "default", "hello", 0.25); err != nil {
+		t.Fatalf("range minimum should be accepted: %v", err)
+	}
+	if _, err := service.Synthesize(context.Background(), "stub", "default", "hello", 0.24); !errors.Is(err, ErrBadSpeed) {
+		t.Fatalf("below-range speed error = %v", err)
+	}
+	if _, err := service.Synthesize(context.Background(), "stub", "default", "hello", 1.51); !errors.Is(err, ErrBadSpeed) {
+		t.Fatalf("above-range speed error = %v", err)
+	}
+}
+
 func TestServiceSynthesisValidationAndFallbackVoice(t *testing.T) {
 	t.Parallel()
 	engine := &stubEngine{

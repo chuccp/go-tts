@@ -154,7 +154,10 @@ func (e *PiperJapaneseEngine) Name() string        { return "Piper 日本語" }
 func (e *PiperJapaneseEngine) Description() string { return "本地 ONNX · 40 MB · 日语专用" }
 func (e *PiperJapaneseEngine) Local() bool         { return true }
 func (e *PiperJapaneseEngine) SupportsSpeed() bool { return true }
-func (e *PiperJapaneseEngine) Available() error    { return e.initErr }
+func (e *PiperJapaneseEngine) SpeedRange() (float64, float64) {
+	return MinLocalSpeed, MaxSpeed
+}
+func (e *PiperJapaneseEngine) Available() error { return e.initErr }
 func (e *PiperJapaneseEngine) Voices(context.Context) ([]Voice, error) {
 	return append([]Voice(nil), e.voices...), e.initErr
 }

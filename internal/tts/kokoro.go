@@ -98,7 +98,10 @@ func (e *KokoroEngine) Name() string        { return "Kokoro" }
 func (e *KokoroEngine) Description() string { return "本地 ONNX · 82M · 中文与英文音色" }
 func (e *KokoroEngine) Local() bool         { return true }
 func (e *KokoroEngine) SupportsSpeed() bool { return true }
-func (e *KokoroEngine) Available() error    { return e.initErr }
+func (e *KokoroEngine) SpeedRange() (float64, float64) {
+	return MinLocalSpeed, MaxSpeed
+}
+func (e *KokoroEngine) Available() error { return e.initErr }
 func (e *KokoroEngine) DefaultVoice() string {
 	for _, voice := range e.voices {
 		if voice.ID == "af_heart" {

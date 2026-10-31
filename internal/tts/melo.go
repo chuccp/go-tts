@@ -58,11 +58,14 @@ func NewMeloEngine(cfg MeloConfig) *MeloEngine {
 	return e
 }
 
-func (e *MeloEngine) ID() string           { return "melo" }
-func (e *MeloEngine) Name() string         { return "Melo TTS" }
-func (e *MeloEngine) Description() string  { return "本地 ONNX · 中文专用 · 词典韵律" }
-func (e *MeloEngine) Local() bool          { return true }
-func (e *MeloEngine) SupportsSpeed() bool  { return true }
+func (e *MeloEngine) ID() string          { return "melo" }
+func (e *MeloEngine) Name() string        { return "Melo TTS" }
+func (e *MeloEngine) Description() string { return "本地 ONNX · 中文专用 · 词典韵律" }
+func (e *MeloEngine) Local() bool         { return true }
+func (e *MeloEngine) SupportsSpeed() bool { return true }
+func (e *MeloEngine) SpeedRange() (float64, float64) {
+	return MinLocalSpeed, MaxSpeed
+}
 func (e *MeloEngine) Available() error     { return e.initErr }
 func (e *MeloEngine) DefaultVoice() string { return "huayan" }
 func (e *MeloEngine) Voices(context.Context) ([]Voice, error) {

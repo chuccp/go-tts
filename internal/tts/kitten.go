@@ -110,7 +110,10 @@ func (e *KittenEngine) Name() string        { return "Kitten TTS" }
 func (e *KittenEngine) Description() string { return "本地 ONNX · 轻量快速 · 8 种音色" }
 func (e *KittenEngine) Local() bool         { return true }
 func (e *KittenEngine) SupportsSpeed() bool { return true }
-func (e *KittenEngine) Available() error    { return e.initErr }
+func (e *KittenEngine) SpeedRange() (float64, float64) {
+	return MinLocalSpeed, MaxSpeed
+}
+func (e *KittenEngine) Available() error { return e.initErr }
 func (e *KittenEngine) DefaultVoice() string {
 	for _, voice := range e.voices {
 		if voice.ID == "Bella" {

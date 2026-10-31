@@ -9,14 +9,15 @@ import (
 )
 
 const (
-	MinSpeed = 0.5
-	MaxSpeed = 2.0
+	MinSpeed      = 0.5
+	MaxSpeed      = 2.0
+	MinLocalSpeed = 0.25
 )
 
 var (
 	ErrEmptyText   = errors.New("text is required")
 	ErrTextTooLong = errors.New("text is too long")
-	ErrBadSpeed    = fmt.Errorf("speed must be between %.1f and %.1f", MinSpeed, MaxSpeed)
+	ErrBadSpeed    = errors.New("speed is out of range")
 )
 
 type Voice struct {
@@ -54,9 +55,22 @@ type EngineStatus struct {
 	Local         bool    `json:"local"`
 	Available     bool    `json:"available"`
 	SupportsSpeed bool    `json:"supportsSpeed"`
+	MinSpeed      float64 `json:"minSpeed"`
+	MaxSpeed      float64 `json:"maxSpeed"`
 	DefaultVoice  string  `json:"defaultVoice,omitempty"`
 	Error         string  `json:"error,omitempty"`
 	Voices        []Voice `json:"voices"`
+}
+
+type speedRangeProvider interface {
+	SpeedRange() (min, max float64)
+}
+
+func speedRange(engine Engine) (float64, float64) {
+	if provider, ok := engine.(speedRangeProvider); ok {
+		return provider.SpeedRange()
+	}
+	return MinSpeed, MaxSpeed
 }
 
 type Service struct {
@@ -117,12 +131,15 @@ func (s *Service) Statuses(ctx context.Context) []EngineStatus {
 	statuses := make([]EngineStatus, 0, len(s.order))
 	for _, id := range s.order {
 		engine := s.engines[id]
+		minSpeed, maxSpeed := speedRange(engine)
 		status := EngineStatus{
 			ID:            engine.ID(),
 			Name:          engine.Name(),
 			Description:   engine.Description(),
 			Local:         engine.Local(),
 			SupportsSpeed: engine.SupportsSpeed(),
+			MinSpeed:      minSpeed,
+			MaxSpeed:      maxSpeed,
 		}
 		if err := engine.Available(); err != nil {
 			status.Error = err.Error()
@@ -167,12 +184,13 @@ func (s *Service) Synthesize(ctx context.Context, engineID, voice, text string, 
 	if len([]rune(text)) > s.maxTextRunes {
 		return Audio{}, fmt.Errorf("%w: maximum is %d characters", ErrTextTooLong, s.maxTextRunes)
 	}
-	if speed < MinSpeed || speed > MaxSpeed {
-		return Audio{}, ErrBadSpeed
-	}
 	engine, err := s.engine(engineID)
 	if err != nil {
 		return Audio{}, err
+	}
+	minSpeed, maxSpeed := speedRange(engine)
+	if speed < minSpeed || speed > maxSpeed {
+		return Audio{}, fmt.Errorf("%w: must be between %g and %g", ErrBadSpeed, minSpeed, maxSpeed)
 	}
 	if err := engine.Available(); err != nil {
 		return Audio{}, err

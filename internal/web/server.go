@@ -64,6 +64,8 @@ type clientEngine struct {
 	Local         bool        `json:"local"`
 	Available     bool        `json:"available"`
 	SupportsSpeed bool        `json:"supportsSpeed"`
+	MinSpeed      float64     `json:"minSpeed"`
+	MaxSpeed      float64     `json:"maxSpeed"`
 	DefaultVoice  string      `json:"defaultVoice,omitempty"`
 	Error         string      `json:"error,omitempty"`
 	Voices        []tts.Voice `json:"voices"`
@@ -182,6 +184,8 @@ func (a *App) home(req *frameweb.Request) (any, error) {
 			Local:         status.Local,
 			Available:     status.Available,
 			SupportsSpeed: status.SupportsSpeed,
+			MinSpeed:      status.MinSpeed,
+			MaxSpeed:      status.MaxSpeed,
 			DefaultVoice:  status.DefaultVoice,
 			Error:         status.Error,
 			Voices:        status.Voices,

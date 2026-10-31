@@ -21,6 +21,8 @@
   const languageWarning = document.getElementById("language-warning");
   const speed = document.getElementById("speed");
   const speedValue = document.getElementById("speed-value");
+  const speedMinLabel = document.getElementById("speed-min-label");
+  const speedMaxLabel = document.getElementById("speed-max-label");
   const charCount = document.getElementById("char-count");
   const synthesize = document.getElementById("synthesize");
   const buttonLabel = synthesize.querySelector(".button-label");
@@ -79,6 +81,26 @@
     return engines.find((engine) => engine.id === selectedEngine);
   }
 
+  function speedLabel(value) {
+    const text = Number(value).toFixed(2).replace(/0$/, "").replace(/\.$/, "");
+    return `${text}×`;
+  }
+
+  function applySpeedRange(engine) {
+    const min = Number(engine?.minSpeed) || 0.5;
+    const max = Number(engine?.maxSpeed) || 2;
+    speed.min = String(min);
+    speed.max = String(max);
+    if (Number(speed.value) < min) {
+      speed.value = String(min);
+    } else if (Number(speed.value) > max) {
+      speed.value = String(max);
+    }
+    speedValue.textContent = `${Number(speed.value).toFixed(2)}×`;
+    speedMinLabel.textContent = speedLabel(min);
+    speedMaxLabel.textContent = speedLabel(max);
+  }
+
   function tr(key, variables) {
     return i18n.t(key, variables);
   }
@@ -128,7 +150,7 @@
   const mobileLayout = window.matchMedia("(max-width: 640px)");
   function placeResultPanel() {
     if (mobileLayout.matches) {
-      text.after(resultPanel);
+      settingsGrid.after(resultPanel);
       mobileSpeedSlot.append(speedField);
     } else {
       workspace.append(resultPanel);
@@ -298,7 +320,7 @@
     loadingVoices = true;
     voiceStatus.textContent = tr("voice.syncing");
     try {
-      const response = await fetch(`/api/voices?engine=${encodeURIComponent(engineID)}`, {
+      const response = await fetch(`api/voices?engine=${encodeURIComponent(engineID)}`, {
         headers: { Accept: "application/json" }
       });
       const payload = await response.json();
@@ -331,6 +353,7 @@
     selectedEngine = engineID;
     selectedVoice = engine.defaultVoice || "";
     selectedLanguage = "";
+    applySpeedRange(engine);
     clearError();
     document.querySelectorAll(".engine-card").forEach((card) => {
       const active = card.dataset.engine === engineID;
@@ -386,7 +409,7 @@
     const sequence = ++detectionSequence;
     try {
       const body = new URLSearchParams({ text: content });
-      const response = await fetch("/api/detect-language", {
+      const response = await fetch("api/detect-language", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
         body
@@ -619,7 +642,7 @@
       clickYs: captchaClicks.map((click) => Math.round(click.y)).join(",")
     });
     try {
-      const response = await fetch("/api/captcha/verify", {
+      const response = await fetch("api/captcha/verify", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -659,7 +682,7 @@
       return;
     }
     try {
-      const response = await fetch("/api/captcha/challenge", {
+      const response = await fetch("api/captcha/challenge", {
         headers: { Accept: "application/json" }
       });
       const payload = await response.json();
@@ -775,7 +798,7 @@
       };
       const timeout = window.setTimeout(() => {
         finish(new Error("Edge direct synthesis timed out"));
-      }, 90000);
+      }, speedValue < 1 ? Math.round(90000 / speedValue) : 90000);
 
       socket.binaryType = "arraybuffer";
       socket.addEventListener("open", () => {
@@ -830,7 +853,7 @@
   }
 
   async function synthesizeEdgeInBrowser(text, voice, speedValue) {
-    const response = await fetch("/api/edge/session", {
+    const response = await fetch("api/edge/session", {
       headers: { Accept: "application/json" }
     });
     if (!response.ok) {
@@ -883,7 +906,7 @@
         );
       }
       if (!blob) {
-        const response = await fetch("/api/synthesize", {
+        const response = await fetch("api/synthesize", {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -1014,9 +1037,22 @@
   });
   window.addEventListener("voxlab:languagechange", refreshDynamicLanguage);
 
+  document.addEventListener("gesturestart", (event) => event.preventDefault());
+  document.addEventListener("wheel", (event) => {
+    if (event.ctrlKey) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+  document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && ["+", "-", "=", "0"].includes(event.key)) {
+      event.preventDefault();
+    }
+  });
+
   updateCharCount();
   refreshDynamicLanguage();
   if (selectedEngine) {
+    applySpeedRange(activeEngine());
     loadVoices(selectedEngine);
   }
 })();

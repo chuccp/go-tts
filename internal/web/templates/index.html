@@ -3,18 +3,18 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="color-scheme" content="dark light">
   <meta name="description" content="按配置启用的多引擎文字转语音工作台">
   <title>VoxLab · 多引擎文字转语音</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/i18n.js" defer></script>
-  <script src="/static/app.js" defer></script>
+  <link rel="stylesheet" href="static/style.css">
+  <script src="static/i18n.js" defer></script>
+  <script src="static/app.js" defer></script>
 </head>
 <body>
   <div class="page-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="VoxLab 首页">
+      <a class="brand" href="./" aria-label="VoxLab 首页">
         <span class="brand-mark" aria-hidden="true">
           <i></i><i></i><i></i><i></i><i></i>
         </span>
@@ -140,7 +140,9 @@
                 <output id="speed-value" for="speed">1.00×</output>
               </div>
               <input id="speed" name="speed" type="range" min="0.5" max="2" step="0.05" value="1">
-              <div class="range-labels" aria-hidden="true"><span>0.5×</span><span>2.0×</span></div>
+              <div class="range-labels" aria-hidden="true">
+                <span id="speed-min-label">0.5×</span><span id="speed-max-label">2.0×</span>
+              </div>
             </div>
           </div>
 
